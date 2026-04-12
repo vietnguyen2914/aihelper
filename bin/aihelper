@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export AIHELPER_TARGET_ROOT="${AIHELPER_TARGET_ROOT:-$PWD}"
+
+if [[ $# -eq 0 ]]; then
+  exec python3 "$SCRIPT_DIR/../context_engine/main.py"
+fi
+
+case "$1" in
+  analyze|feedback|feedback-summary)
+    exec python3 "$SCRIPT_DIR/../context_engine/main.py" "$@"
+    ;;
+  *)
+    exec python3 "$SCRIPT_DIR/../context_engine/main.py" analyze "$@"
+    ;;
+esac

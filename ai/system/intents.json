@@ -1,0 +1,37 @@
+{
+  "intents": [
+    {
+      "name": "implement",
+      "description": "Build or extend behavior.",
+      "planning_style": "deliver",
+      "priority": 1,
+      "keywords": ["implement", "add", "build", "create", "support", "enable"],
+      "verbs": ["implement", "add", "build", "create", "support", "enable"]
+    },
+    {
+      "name": "repair",
+      "description": "Fix a broken or risky behavior.",
+      "planning_style": "repair",
+      "priority": 2,
+      "keywords": ["fix", "bug", "error", "timeout", "broken", "failure", "crash"],
+      "verbs": ["fix", "repair", "debug", "resolve"]
+    },
+    {
+      "name": "investigate",
+      "description": "Trace or analyze current behavior.",
+      "planning_style": "investigate",
+      "priority": 1,
+      "keywords": ["analyze", "trace", "understand", "inspect", "investigate", "why", "how"],
+      "verbs": ["analyze", "trace", "inspect", "investigate", "understand"]
+    },
+    {
+      "name": "validate",
+      "description": "Verify correctness with tests or manual coverage.",
+      "planning_style": "validate",
+      "priority": 1,
+      "keywords": ["test", "verify", "validate", "check", "coverage"],
+      "verbs": ["test", "verify", "validate", "check"]
+    }
+  ]
+}
+
