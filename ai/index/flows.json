@@ -1,27 +1,5 @@
 [
   {
-    "name": "resolve_target_project_and_service_map",
-    "feature": "target_project_resolution_and_service_discovery",
-    "entry_point": "bin/aihelper -> context_engine/main.py analyze",
-    "steps": [
-      "bin/aihelper exports AIHELPER_TARGET_ROOT from current working directory",
-      "context_engine/main.py parses analyze command and project-root overrides",
-      "context_engine/common.py project_root resolves the active target repository",
-      "context_engine/common.py discover_services scans root and child services for ai/index/features.json",
-      "context_engine/common.py load_feature_index/load_flow_index/load_integration_index normalize index shape"
-    ],
-    "db_interactions": [
-      "ai/index/features.json",
-      "ai/index/flows.json",
-      "ai/index/integrations.json"
-    ],
-    "ext_usage": [
-      "bin/aihelper",
-      "context_engine/common.py",
-      "context_engine/main.py"
-    ]
-  },
-  {
     "name": "analyze_known_feature_request",
     "feature": "feature_context_selection_and_prompt_generation",
     "entry_point": "context_engine/main.py analyze_request with matched features",
@@ -33,7 +11,7 @@
       "context_engine/build_prompt.py rewrite_prompt",
       "context_engine/build_prompt.py build_prompt",
       "context_engine/planner.py build_execution_plan",
-      "context_engine/main.py returns JSON result"
+      "context_engine/main.py returns the final JSON result"
     ],
     "db_interactions": [
       "ai/index/features.json",
@@ -53,10 +31,10 @@
     "feature": "discovery_and_llm_fallback_or_handoff",
     "entry_point": "context_engine/main.py analyze_request unmatched-feature path",
     "steps": [
-      "context_engine/discovery.py discover_feature_from_codebase builds a local snapshot",
-      "context_engine/ollama_fallback.py build_discovery_prompt creates strict JSON instructions",
-      "context_engine/ollama_fallback.py generate_with_ollama resolves an available local model and calls /api/generate",
-      "context_engine/main.py parses the Ollama JSON response",
+      "context_engine/discovery.py discover_feature_from_codebase",
+      "context_engine/ollama_fallback.py build_discovery_prompt",
+      "context_engine/ollama_fallback.py generate_with_ollama",
+      "context_engine/main.py parses the returned JSON",
       "context_engine/main.py returns discovery_result in discover_feature execution step"
     ],
     "db_interactions": [
@@ -77,7 +55,7 @@
     "steps": [
       "context_engine/discovery.py discover_feature_from_codebase builds a compact snapshot",
       "context_engine/ollama_fallback.py build_manual_fallback_prompt creates a short GPT or Claude handoff prompt",
-      "context_engine/main.py prints the compact prompt to console instead of failing"
+      "context_engine/main.py prints the handoff prompt to console"
     ],
     "db_interactions": [
       "codebase snapshot"
@@ -89,13 +67,56 @@
     ]
   },
   {
+    "name": "record_feedback_and_keyword_learning",
+    "feature": "feedback_and_adaptive_learning",
+    "entry_point": "context_engine/main.py feedback and feedback-summary",
+    "steps": [
+      "context_engine/main.py parses corrected intent and features",
+      "context_engine/learning.py record_feedback updates token weights",
+      "context_engine/learning.py writes learned_keywords.json and feedback_log.json",
+      "context_engine/intent_detector.py and context_engine/detect_feature.py read learned weights on later runs"
+    ],
+    "db_interactions": [
+      "ai/system/learned_keywords.json",
+      "ai/system/feedback_log.json",
+      "ai/system/intents.json"
+    ],
+    "ext_usage": [
+      "context_engine/learning.py",
+      "context_engine/intent_detector.py",
+      "context_engine/detect_feature.py"
+    ]
+  },
+  {
+    "name": "resolve_target_project_and_service_map",
+    "feature": "target_project_resolution_and_service_discovery",
+    "entry_point": "bin/aihelper -> context_engine/main.py analyze",
+    "steps": [
+      "bin/aihelper exports AIHELPER_TARGET_ROOT",
+      "context_engine/main.py parses command and root overrides",
+      "context_engine/common.py project_root resolves the active repository",
+      "context_engine/common.py discover_services scans for ai/index/features.json",
+      "context_engine/common.py loads normalized feature, flow, and integration indexes"
+    ],
+    "db_interactions": [
+      "ai/index/features.json",
+      "ai/index/flows.json",
+      "ai/index/integrations.json"
+    ],
+    "ext_usage": [
+      "bin/aihelper",
+      "context_engine/common.py",
+      "context_engine/main.py"
+    ]
+  },
+  {
     "name": "update_ai_knowledge_base_from_discovery",
     "feature": "knowledge_base_generation_and_self_healing",
     "entry_point": "context_engine/main.py analyze --auto-update-kb",
     "steps": [
       "context_engine/main.py receives a parsed discovery_result",
       "context_engine/kb_updater.py validates confidence and existence rules",
-      "context_engine/kb_updater.py writes ai/features/<feature>.json if it does not exist",
+      "context_engine/kb_updater.py writes ai/features/<feature>.json if missing",
       "context_engine/kb_updater.py writes ai/flows/<flow>.json for discovered flows",
       "context_engine/kb_updater.py updates ai/index/features.json and ai/index/flows.json"
     ],
@@ -108,27 +129,6 @@
     "ext_usage": [
       "context_engine/kb_updater.py",
       "context_engine/main.py"
-    ]
-  },
-  {
-    "name": "record_feedback_and_keyword_learning",
-    "feature": "feedback_and_adaptive_learning",
-    "entry_point": "context_engine/main.py feedback and feedback-summary",
-    "steps": [
-      "context_engine/main.py feedback command parses corrected intent and features",
-      "context_engine/learning.py record_feedback updates per-intent and per-feature token weights",
-      "context_engine/learning.py writes learned_keywords.json and feedback_log.json",
-      "context_engine/intent_detector.py and context_engine/detect_feature.py read those learned weights on future runs"
-    ],
-    "db_interactions": [
-      "ai/system/learned_keywords.json",
-      "ai/system/feedback_log.json",
-      "ai/system/intents.json"
-    ],
-    "ext_usage": [
-      "context_engine/learning.py",
-      "context_engine/intent_detector.py",
-      "context_engine/detect_feature.py"
     ]
   }
 ]

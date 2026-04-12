@@ -1,29 +1,42 @@
 [
   {
-    "name": "target_project_resolution_and_service_discovery",
-    "purpose": "Resolve the active project root, discover one or more AI-enabled services, and normalize index access so the helper can analyze the correct repository context.",
+    "name": "discovery_and_llm_fallback_or_handoff",
+    "purpose": "Handle requests that do not match the current AI indexes by inspecting the codebase, asking a local Ollama model for structured discovery, or producing a short handoff prompt for GPT or Claude.",
     "entry_points": [
-      "CLI /Users/vietnguyen/github/aihelper/bin/aihelper",
-      "context_engine/main.py analyze",
-      "context_engine/common.py project_root",
-      "context_engine/common.py discover_services"
+      "context_engine/main.py analyze_request unmatched-feature path",
+      "context_engine/discovery.py discover_feature_from_codebase",
+      "context_engine/ollama_fallback.py build_discovery_prompt",
+      "context_engine/ollama_fallback.py generate_with_ollama",
+      "context_engine/ollama_fallback.py build_manual_fallback_prompt"
     ],
     "core_entities": [
-      "AIHELPER_TARGET_ROOT",
-      "target_root",
-      "service descriptor",
-      "feature index",
-      "flow index",
-      "integration index"
+      "discovery_result",
+      "discovery_prompt",
+      "prompt_fallback",
+      "ollama model",
+      "codebase snapshot"
     ],
     "related_ext_files": [
-      "bin/aihelper",
-      "context_engine/common.py",
-      "context_engine/main.py"
+      {
+        "path": "context_engine/discovery.py",
+        "role": "Builds a lightweight snapshot of controllers, services, entities, and pages from the current codebase."
+      },
+      {
+        "path": "context_engine/ollama_fallback.py",
+        "role": "Generates strict JSON discovery prompts, resolves local Ollama models, and creates compact GPT or Claude handoff prompts."
+      },
+      {
+        "path": "context_engine/main.py",
+        "role": "Chooses between Ollama discovery and manual handoff when no indexed feature matches."
+      }
     ],
     "overlaps": [
       "feature_context_selection_and_prompt_generation",
       "knowledge_base_generation_and_self_healing"
+    ],
+    "notes": [
+      "The Ollama request path enforces JSON output so the discovery response can be parsed safely.",
+      "If Ollama is down or no model can be resolved, the helper prints a short prompt that can be pasted into GPT or Claude."
     ]
   },
   {
@@ -45,71 +58,35 @@
       "execution_steps"
     ],
     "related_ext_files": [
-      "context_engine/detect_feature.py",
-      "context_engine/load_context.py",
-      "context_engine/build_prompt.py",
-      "context_engine/planner.py",
-      "context_engine/intent_detector.py"
+      {
+        "path": "context_engine/detect_feature.py",
+        "role": "Ranks business features using feature metadata, learned keywords, entry points, and core entities."
+      },
+      {
+        "path": "context_engine/load_context.py",
+        "role": "Builds a service-aware context bundle containing features, flows, integrations, and override paths."
+      },
+      {
+        "path": "context_engine/build_prompt.py",
+        "role": "Builds the final prompt and the structured prompt-rewrite variant for AI agents."
+      },
+      {
+        "path": "context_engine/planner.py",
+        "role": "Creates deterministic execution steps from the selected feature context and detected intent."
+      },
+      {
+        "path": "context_engine/intent_detector.py",
+        "role": "Classifies the request into planning styles like investigate, repair, validate, or implement."
+      }
     ],
     "overlaps": [
       "target_project_resolution_and_service_discovery",
       "discovery_and_llm_fallback_or_handoff",
       "feedback_and_adaptive_learning"
-    ]
-  },
-  {
-    "name": "discovery_and_llm_fallback_or_handoff",
-    "purpose": "Handle requests that do not match the current AI indexes by inspecting the codebase, asking a local Ollama model for structured discovery, or producing a short handoff prompt for GPT or Claude.",
-    "entry_points": [
-      "context_engine/main.py analyze_request unmatched path",
-      "context_engine/discovery.py discover_feature_from_codebase",
-      "context_engine/ollama_fallback.py build_discovery_prompt",
-      "context_engine/ollama_fallback.py generate_with_ollama",
-      "context_engine/ollama_fallback.py build_manual_fallback_prompt"
     ],
-    "core_entities": [
-      "discovery_result",
-      "discovery_prompt",
-      "prompt_fallback",
-      "ollama model",
-      "codebase snapshot"
-    ],
-    "related_ext_files": [
-      "context_engine/discovery.py",
-      "context_engine/ollama_fallback.py",
-      "context_engine/main.py"
-    ],
-    "overlaps": [
-      "feature_context_selection_and_prompt_generation",
-      "knowledge_base_generation_and_self_healing"
-    ]
-  },
-  {
-    "name": "knowledge_base_generation_and_self_healing",
-    "purpose": "Generate and update the AI knowledge base under /ai so the helper can persist new business features, flows, and indexes instead of relying only on runtime discovery.",
-    "entry_points": [
-      "context_engine/kb_updater.py update_ai_kb",
-      "context_engine/main.py analyze --auto-update-kb",
-      "docs/PROJECT-KNOWLEDGE-BASE.md kickoff workflow",
-      "docs/analysis/project-kb-generation.md"
-    ],
-    "core_entities": [
-      "ai/index/features.json",
-      "ai/index/flows.json",
-      "ai/index/integrations.json",
-      "ai/features/*.json",
-      "ai/flows/*.json"
-    ],
-    "related_ext_files": [
-      "context_engine/kb_updater.py",
-      "context_engine/common.py",
-      "docs/PROJECT-KNOWLEDGE-BASE.md",
-      "docs/analysis/project-kb-generation.md"
-    ],
-    "overlaps": [
-      "target_project_resolution_and_service_discovery",
-      "discovery_and_llm_fallback_or_handoff",
-      "feedback_and_adaptive_learning"
+    "notes": [
+      "This is the primary happy-path feature for known business features already represented under /ai.",
+      "The output is structured so multiple AI agents can consume the same result consistently."
     ]
   },
   {
@@ -131,15 +108,114 @@
       "feature keyword weights"
     ],
     "related_ext_files": [
-      "context_engine/learning.py",
-      "context_engine/intent_detector.py",
-      "context_engine/detect_feature.py",
-      "ai/system/intents.json",
-      "ai/system/shared_keywords.json"
+      {
+        "path": "context_engine/learning.py",
+        "role": "Stores feedback summaries, learned keywords, and rolling prompt acceptance data."
+      },
+      {
+        "path": "context_engine/intent_detector.py",
+        "role": "Uses learned intent weights to refine future planning-style detection."
+      },
+      {
+        "path": "context_engine/detect_feature.py",
+        "role": "Uses learned feature weights to improve feature ranking."
+      },
+      {
+        "path": "ai/system/intents.json",
+        "role": "Provides the base intent configuration that learning builds on top of."
+      }
     ],
     "overlaps": [
       "feature_context_selection_and_prompt_generation",
       "knowledge_base_generation_and_self_healing"
+    ],
+    "notes": [
+      "Learning data can live in the target project when that project has an ai/system directory, otherwise the helper falls back to its own shared system folder.",
+      "This feature improves routing quality without changing the underlying business features directly."
+    ]
+  },
+  {
+    "name": "knowledge_base_generation_and_self_healing",
+    "purpose": "Generate and update the AI knowledge base under /ai so the helper can persist new business features, flows, and indexes instead of relying only on runtime discovery.",
+    "entry_points": [
+      "context_engine/kb_updater.py update_ai_kb",
+      "context_engine/main.py analyze --auto-update-kb",
+      "docs/PROJECT-KNOWLEDGE-BASE.md kickoff workflow",
+      "docs/analysis/project-kb-generation.md"
+    ],
+    "core_entities": [
+      "ai/index/features.json",
+      "ai/index/flows.json",
+      "ai/index/integrations.json",
+      "ai/features/*.json",
+      "ai/flows/*.json"
+    ],
+    "related_ext_files": [
+      {
+        "path": "context_engine/kb_updater.py",
+        "role": "Validates discovery results and writes new feature and flow JSON files without overwriting existing knowledge."
+      },
+      {
+        "path": "context_engine/common.py",
+        "role": "Provides safe JSON load and write helpers used to update the AI indexes."
+      },
+      {
+        "path": "docs/PROJECT-KNOWLEDGE-BASE.md",
+        "role": "Defines the project kickoff workflow that leads from discovery to KB generation."
+      },
+      {
+        "path": "docs/analysis/project-kb-generation.md",
+        "role": "Captures the delivery order and constraints for building a reusable project knowledge base."
+      }
+    ],
+    "overlaps": [
+      "target_project_resolution_and_service_discovery",
+      "discovery_and_llm_fallback_or_handoff",
+      "feedback_and_adaptive_learning"
+    ],
+    "notes": [
+      "Write-back is intentionally gated by confidence and existence checks to avoid low-quality KB mutations.",
+      "This feature turns one-off discovery into durable project knowledge."
+    ]
+  },
+  {
+    "name": "target_project_resolution_and_service_discovery",
+    "purpose": "Resolve the active project root, discover one or more AI-enabled services, and normalize index access so the helper can analyze the correct repository context.",
+    "entry_points": [
+      "CLI /Users/vietnguyen/github/aihelper/bin/aihelper",
+      "context_engine/main.py analyze",
+      "context_engine/common.py project_root",
+      "context_engine/common.py discover_services"
+    ],
+    "core_entities": [
+      "AIHELPER_TARGET_ROOT",
+      "target_root",
+      "service descriptor",
+      "feature index",
+      "flow index",
+      "integration index"
+    ],
+    "related_ext_files": [
+      {
+        "path": "bin/aihelper",
+        "role": "Sets the effective target root from the current shell directory and dispatches the analyze command by default."
+      },
+      {
+        "path": "context_engine/common.py",
+        "role": "Resolves the active project root, scans for AI-enabled services, and normalizes index file loading."
+      },
+      {
+        "path": "context_engine/main.py",
+        "role": "Passes project-root settings through the CLI into the runtime analysis flow."
+      }
+    ],
+    "overlaps": [
+      "feature_context_selection_and_prompt_generation",
+      "knowledge_base_generation_and_self_healing"
+    ],
+    "notes": [
+      "The helper can analyze itself or another repository depending on the current working directory or explicit project-root override.",
+      "Index loading supports both keyed JSON objects and raw JSON arrays."
     ]
   }
 ]
