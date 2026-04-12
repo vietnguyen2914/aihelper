@@ -296,7 +296,7 @@ Mình có thể giúp bạn:
 
 Chỉ cần nói: **“domain dictionary”** 👍
 
-----------------------------------------------------
+---------------------------------------------------------------------
 
 Chuẩn — đây là bước nâng cấp rất “thực chiến” cho case của bạn (VI + EN + domain y tế).
 
@@ -561,3 +561,219 @@ Mình có thể giúp bạn:
 ---
 
 Chỉ cần nói: **“expand domain HIS”** 👍
+
+------------------------------------------------------------------------
+
+Ngắn gọn: **Có — và nên làm.**
+Nhưng dùng **model nhỏ chỉ cho đúng việc “ngôn ngữ” (normalize, map VI↔EN, intent nhẹ)**, không thay thế model lớn cho design/analysis.
+
+---
+
+# 🧠 1. Chọn model local phù hợp
+
+## 🎯 Mục tiêu của bạn
+
+* normalize VI ↔ EN
+* map keyword / synonym
+* intent detection nhẹ
+* chạy cực nhanh (<50–100ms)
+
+---
+
+## ✅ Gợi ý model (Ollama)
+
+### ⚡ Rất nhẹ + nhanh
+
+* Qwen2.5 1.5B
+
+👉 dùng cho:
+
+* normalize prompt
+* keyword extraction
+* intent classification
+
+---
+
+### ⚖️ Cân bằng (khuyên dùng)
+
+* Mistral 3
+* Qwen2.5 3B
+
+👉 dùng cho:
+
+* fallback discovery
+* feature inference
+
+---
+
+### 🧱 Model lớn (giữ lại)
+
+* Qwen2.5 7B (bạn đang dùng)
+
+👉 chỉ dùng khi:
+
+* discovery phức tạp
+* design feature
+
+---
+
+# 🚀 2. Kiến trúc chuẩn (multi-model local)
+
+```text
+Prompt
+   ↓
+Intent + normalize → (tiny model ⚡)
+   ↓
+Detect feature → (rule-based + keyword)
+   ↓
+IF fail:
+   ↓
+Discovery → (medium model)
+```
+
+---
+
+# ⚡ 3. Cách integrate (rất đơn giản)
+
+## 🧩 sửa `ollama_fallback.py`
+
+```python
+import requests
+
+OLLAMA_URL = "http://localhost:11434/api/generate"
+
+MODELS = {
+    "tiny": "qwen2.5:1.5b",
+    "medium": "qwen2.5:3b",
+    "large": "qwen2.5:7b"
+}
+
+def call_ollama(prompt, model_type="tiny"):
+    model = MODELS[model_type]
+
+    response = requests.post(
+        OLLAMA_URL,
+        json={
+            "model": model,
+            "prompt": prompt,
+            "stream": False
+        }
+    )
+
+    return response.json()["response"]
+```
+
+---
+
+# 🧠 4. Dùng model nhỏ cho multilingual
+
+## 👉 thay normalize rule-based bằng LLM nhỏ
+
+```python
+def normalize_with_llm(prompt):
+    llm_prompt = f"""
+Normalize this text into English keywords.
+
+Input:
+{prompt}
+
+Output ONLY keywords:
+"""
+
+    return call_ollama(llm_prompt, "tiny")
+```
+
+---
+
+👉 ví dụ:
+
+```txt
+lỗi upload ảnh bệnh nhân
+```
+
+→ output:
+
+```txt
+error upload image patient
+```
+
+---
+
+# 🔥 5. Khi nào dùng model nào?
+
+| Task               | Model      |
+| ------------------ | ---------- |
+| normalize VI/EN    | tiny       |
+| intent detect      | tiny       |
+| keyword expand     | tiny       |
+| feature detect     | rule-based |
+| fallback discovery | medium     |
+| design complex     | large      |
+
+---
+
+# ⚠️ 6. Sai lầm cần tránh
+
+## ❌ Dùng model lớn cho mọi thứ
+
+→ chậm + tốn
+
+---
+
+## ❌ Dùng model nhỏ cho discovery
+
+→ hallucinate / thiếu depth
+
+---
+
+# 💡 7. Insight quan trọng
+
+👉 Bạn đang tiến tới:
+
+> ❗ **Model specialization architecture**
+
+---
+
+Không phải:
+
+* 1 model làm tất cả
+
+---
+
+Mà:
+
+* mỗi model làm đúng việc
+
+---
+
+# 🚀 8. Nâng cấp nên làm tiếp
+
+👉 thêm routing:
+
+```python
+if task == "normalize":
+    use tiny
+elif task == "discovery":
+    use medium
+```
+
+---
+
+# ✅ 9. Kết luận
+
+✔ Có thể dùng Ollama local cho multilingual
+✔ Nên dùng model nhỏ (Qwen 1.5B)
+✔ Giữ model lớn cho discovery
+
+---
+
+# 👉 Nếu bạn muốn step tiếp theo
+
+Mình có thể giúp bạn:
+
+✔ auto model routing (system tự chọn model)
+✔ hoặc benchmark model nào nhanh nhất cho case của bạn
+
+---
+
+Chỉ cần nói: **“auto model routing”** 👍

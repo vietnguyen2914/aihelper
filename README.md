@@ -22,4 +22,8 @@ Available commands:
 
 The default output format is structured Markdown. Use `--json` or `-json` when you need machine-readable output.
 
-Docs: [docs/README.md](~/github/aihelper/docs/README.md)
+Docs: [docs/README.md](./docs/README.md)
+
+In case of functional analysis template for multi-languages project (English mixed with Vietnamese), reference to HIS project with below example prompt:
+
+`Phân tích và cập nhật luồng thu ngân ngoại trú theo mẫu đang có, bám 'docs/ai-agent/mau-phan-tich-luong.md', cập nhật 'docs/use-cases/', và giữ file chính là 'overview.md'.`
