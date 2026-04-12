@@ -11,7 +11,7 @@ aihelper - portable AI helper for projects that keep knowledge in ai/
 Usage:
   aihelper "<prompt>"
   aihelper analyze "<prompt>"
-  aihelper analyze "<prompt>" --json
+  aihelper analyze --format prompt "<prompt>"
   aihelper feedback "<prompt>" --intent "<intent>" [--features ...] [--accepted] [--rating N] [--notes "..."]
   aihelper feedback-summary
   aihelper rebuild-index
@@ -19,7 +19,7 @@ Usage:
 Examples:
   aihelper "trace upload flow"
   aihelper analyze "trace upload flow"
-  aihelper analyze "trace upload flow" --json
+  aihelper analyze --format prompt "trace upload flow"
   aihelper feedback "trace upload flow" --intent upload_flow --features ingestion tracing
   aihelper feedback-summary
   aihelper rebuild-index
@@ -28,9 +28,55 @@ Notes:
   - If no command is given, this guide is shown.
   - Commands accept --project-root when you want to target another repository.
   - AIHELPER_TARGET_ROOT defaults to the current working directory.
-  - Output is Markdown by default; pass --json or -json to get JSON.
+  - Output is Markdown by default; pass --format json to get JSON or --format prompt to get the rewritten prompt.
   - You can pipe a prompt on stdin for multiline input.
 EOF
+}
+
+run_analyze() {
+  local -a forwarded=()
+  local -a prompt_parts=()
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --project-root|--format|--max-context-chars)
+        if [[ $# -lt 2 ]]; then
+          echo "Missing value for $1" >&2
+          exit 1
+        fi
+        forwarded+=("$1" "$2")
+        shift 2
+        ;;
+      --auto-update-kb|--json|-json)
+        forwarded+=("$1")
+        shift
+        ;;
+      -h|--help|help)
+        forwarded+=("$1")
+        shift
+        ;;
+      --)
+        shift
+        if [[ $# -gt 0 ]]; then
+          prompt_parts+=("$@")
+        fi
+        break
+        ;;
+      *)
+        prompt_parts+=("$1")
+        shift
+        ;;
+    esac
+  done
+
+  if [[ ${#prompt_parts[@]} -gt 0 ]]; then
+    local prompt
+    prompt="$(printf '%s ' "${prompt_parts[@]}")"
+    prompt="${prompt% }"
+    forwarded+=("$prompt")
+  fi
+
+  exec python3 "$SCRIPT_DIR/../context_engine/main.py" analyze "${forwarded[@]}"
 }
 
 if [[ $# -eq 0 ]]; then
@@ -54,6 +100,10 @@ case "$1" in
       rebuild_index) set -- rebuild-index "${@:2}" ;;
       feedback_summary) set -- feedback-summary "${@:2}" ;;
     esac
+    if [[ "$1" == "analyze" ]]; then
+      shift
+      run_analyze "$@"
+    fi
     exec python3 "$SCRIPT_DIR/../context_engine/main.py" "$@"
     ;;
   *)

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 from time import perf_counter
 from typing import Any, Dict
@@ -314,29 +315,38 @@ def main() -> int:
     rebuild_parser.add_argument("--project-root", default=None)
     rebuild_parser.add_argument("--json", "-json", action="store_true", default=False, help=argparse.SUPPRESS)
 
-    parser.add_argument("legacy_prompt", nargs="?", help=argparse.SUPPRESS)
-    parser.add_argument("--project-root", dest="legacy_project_root", default=None, help=argparse.SUPPRESS)
-    parser.add_argument("--format", dest="legacy_format", choices=("json", "markdown", "prompt"), default="markdown", help=argparse.SUPPRESS)
-    parser.add_argument("--max-context-chars", dest="legacy_max_context_chars", type=int, default=12000, help=argparse.SUPPRESS)
-    parser.add_argument("--auto-update-kb", dest="legacy_auto_update_kb", action="store_true", help=argparse.SUPPRESS)
-    parser.add_argument("--json", dest="legacy_json", action="store_true", default=False, help=argparse.SUPPRESS)
-    parser.add_argument("-json", dest="legacy_json", action="store_true", default=False, help=argparse.SUPPRESS)
+    argv = sys.argv[1:]
+    known_commands = {"analyze", "feedback", "feedback-summary", "feedback_summary", "rebuild-index", "rebuild_index"}
+    if not argv or argv[0] in {"-h", "--help", "help"}:
+        parser.print_help()
+        return 0
 
-    args = parser.parse_args()
-    command = args.command or "analyze"
+    if argv[0] in {"feedback_summary", "rebuild_index"}:
+        argv = [argv[0].replace("_", "-"), *argv[1:]]
 
-    if command == "analyze":
-        user_prompt = getattr(args, "user_prompt", None) or args.legacy_prompt
+    def _parse_analyze_args(values: list[str]) -> argparse.Namespace:
+        args, extras = analyze_parser.parse_known_args(values)
+        if any(token.startswith("-") for token in extras):
+            analyze_parser.error(f"unrecognized arguments: {' '.join(extras)}")
+        if extras:
+            prompt_bits = [args.user_prompt] if getattr(args, "user_prompt", None) else []
+            prompt_bits.extend(extras)
+            args.user_prompt = " ".join(bit for bit in prompt_bits if bit)
+        return args
+
+    if argv[0] == "analyze":
+        args = _parse_analyze_args(argv[1:])
+        user_prompt = args.user_prompt
         if not user_prompt:
             parser.error("a user prompt is required")
-        target_root = Path((getattr(args, "project_root", None) or args.legacy_project_root) or Path.cwd()).resolve()
-        output_format = getattr(args, "format", None) or args.legacy_format
-        json_requested = bool(getattr(args, "json", False) or args.legacy_json)
+        target_root = Path(args.project_root or Path.cwd()).resolve()
+        output_format = args.format
+        json_requested = bool(args.json)
         result = analyze_request(
             user_prompt,
-            max_context_chars=getattr(args, "max_context_chars", None) or args.legacy_max_context_chars,
+            max_context_chars=args.max_context_chars,
             root=target_root,
-            auto_update_kb=bool(getattr(args, "auto_update_kb", False) or args.legacy_auto_update_kb),
+            auto_update_kb=bool(args.auto_update_kb),
         )
         if result.get("mode") == "prompt_only" and result.get("prompt_fallback"):
             print("Ollama is unavailable. Paste the following prompt into GPT or Claude:\n")
@@ -350,7 +360,8 @@ def main() -> int:
             print(render_analyze_markdown(result))
         return 0
 
-    if command == "feedback":
+    if argv[0] == "feedback":
+        args = feedback_parser.parse_args(argv[1:])
         target_root = Path(args.project_root or Path.cwd()).resolve()
         summary = record_feedback(
             user_prompt=args.user_prompt,
@@ -361,28 +372,57 @@ def main() -> int:
             notes=args.notes,
             root=target_root,
         )
-        if getattr(args, "json", False):
+        if bool(args.json):
             print(json.dumps(summary, indent=2, ensure_ascii=False))
         else:
             print(render_markdown("Feedback Summary", summary))
         return 0
 
-    if command == "rebuild-index":
+    if argv[0] == "feedback-summary":
+        args = summary_parser.parse_args(argv[1:])
+        target_root = Path(args.project_root or Path.cwd()).resolve()
+        result = feedback_summary(root=target_root)
+        if bool(args.json):
+            print(json.dumps(result, indent=2, ensure_ascii=False))
+        else:
+            print(render_markdown("Feedback Summary", result))
+        return 0
+
+    if argv[0] == "rebuild-index":
+        args = rebuild_parser.parse_args(argv[1:])
         target_root = Path(args.project_root or Path.cwd()).resolve()
         result = rebuild_indexes(target_root)
-        if getattr(args, "json", False):
+        if bool(args.json):
             print(json.dumps(result, indent=2, ensure_ascii=False))
         else:
             print(render_markdown("Rebuild Index", result))
         return 0
 
-    target_root = Path(args.project_root or Path.cwd()).resolve()
-    result = feedback_summary(root=target_root)
-    if getattr(args, "json", False):
-        print(json.dumps(result, indent=2, ensure_ascii=False))
-    else:
-        print(render_markdown("Feedback Summary", result))
-    return 0
+    if argv[0] in known_commands:
+        parser.error(f"unknown command: {argv[0]}")
+
+    if len(argv) == 1 and not argv[0].startswith("-"):
+        args = _parse_analyze_args(argv)
+        target_root = Path(args.project_root or Path.cwd()).resolve()
+        result = analyze_request(
+            args.user_prompt,
+            max_context_chars=args.max_context_chars,
+            root=target_root,
+            auto_update_kb=bool(args.auto_update_kb),
+        )
+        if result.get("mode") == "prompt_only" and result.get("prompt_fallback"):
+            print("Ollama is unavailable. Paste the following prompt into GPT or Claude:\n")
+            print(result["prompt_fallback"])
+            return 0
+        if args.format == "prompt":
+            print(result["final_prompt"])
+        elif bool(args.json) or args.format == "json":
+            print(json.dumps(result, indent=2, ensure_ascii=False))
+        else:
+            print(render_analyze_markdown(result))
+        return 0
+
+    parser.error(f"unknown command: {argv[0]}")
 
 
 if __name__ == "__main__":
