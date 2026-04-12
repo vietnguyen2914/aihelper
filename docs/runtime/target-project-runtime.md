@@ -10,33 +10,21 @@ From the repo you want to inspect:
 
 That command automatically points the helper at the current directory.
 
-## Examples
+## Example Targets
 
-### Mindforme
-
-```bash
-cd ~/github/mindforme
-~/github/aihelper/bin/aihelper "trace S3 upload and blur flow"
-```
-
-### SignServer
+### HIS PHP project
 
 ```bash
-cd ~/github/signserver
-~/github/aihelper/bin/aihelper "fix signing timeout"
+cd /opt/homebrew/var/www/his
+~/github/aihelper/bin/aihelper "trace outpatient intake flow"
 ```
 
-### LMS
-
-```bash
-cd ~/github/lms
-~/github/aihelper/bin/aihelper "analyze course enrollment flow"
-```
+The launcher uses the current directory as the target project, so the helper reads `/opt/homebrew/var/www/his/ai/...` when you run it from that project root.
 
 ## When to use direct `main.py`
 
 ```bash
-python3 ~/github/aihelper/context_engine/main.py analyze "fix signing timeout" --project-root "$PWD"
+python3 ~/github/aihelper/context_engine/main.py analyze "trace outpatient intake flow" --project-root "$PWD"
 ```
 
 Use this when you want explicit flags like:
@@ -44,4 +32,3 @@ Use this when you want explicit flags like:
 - `--format prompt`
 - `--max-context-chars 8000`
 - `--auto-update-kb`
-

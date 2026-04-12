@@ -2,14 +2,9 @@
 
 ## What the helper expects from a target project
 
-- An `ai/` directory in the project root or in one of its direct child services.
-- `ai/index/features.json`
-- Optional:
-  - `ai/index/flows.json`
-  - `ai/index/integrations.json`
-  - `ai/features/*.json`
-  - `ai/system/intents.json`
-  - `ai/system/learned_keywords.json`
+- A project root with code and/or modules that can be inspected.
+- An `ai/` directory with `index`, `features`, and `flows` content.
+- Optional `ai/system` files for intent hints and learned keywords.
 
 ## Output shape
 
@@ -29,4 +24,4 @@ The default output is JSON with:
 - Python stdlib only.
 - Fast filesystem and JSON inspection.
 - Best effort discovery fallback when indexed features are missing or too weak.
-
+- Designed to work with PHP, Java, or mixed legacy projects as long as the `ai/` folder follows the same shape.

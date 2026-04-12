@@ -1,96 +1,86 @@
-# AI Helper Project Knowledge Base
+# Project Knowledge Base
 
 ## Purpose
 
-This repository provides a portable AI context engine that you can run from one place while targeting another repository. The engine reads the target repo's `ai/index/*.json` files, loads related feature and flow documents, inspects override paths, and emits a structured prompt and execution plan for the task you want to run.
+This KB is the kickoff document for a new project. It explains how to discover the codebase, document the business functions, generate the AI indexes, and keep the docs aligned with the implementation.
 
-## Quick Start
+## Kickoff Workflow
 
-### One-line usage from another project
+1. Discover the project KB from code, docs, routes, entities, services, jobs, and overrides.
+2. Build the project function mindmap in Mermaid and write it to docs.
+3. Expand each top-level function into detailed use cases.
+4. Add technical, data, relationships, service-call, integration, and admin notes for each use case.
+5. Build the function/use-case vs. system architecture matrix in Markdown.
+6. Generate the AI indexes under `/ai`.
+7. Update the docs nav so every page links to the next level down.
+
+## Fast Start
+
+### One-line launcher
 
 ```bash
-~/github/aihelper/bin/aihelper "fix signing timeout"
+~/github/aihelper/bin/aihelper "build project KB"
 ```
 
-Run that command from the target repo root. The launcher automatically uses the current directory as `AIHELPER_TARGET_ROOT`.
-
-### Explicit project root
+### Explicit target root
 
 ```bash
-AIHELPER_TARGET_ROOT=~/github/mindforme ~/github/aihelper/bin/aihelper "trace S3 upload flow"
+AIHELPER_TARGET_ROOT=/opt/homebrew/var/www/his ~/github/aihelper/bin/aihelper "build project KB"
 ```
 
 ### Prompt-only output
 
 ```bash
-~/github/aihelper/bin/aihelper analyze "trace S3 upload flow" --format prompt
+~/github/aihelper/bin/aihelper analyze "trace patient intake flow" --format prompt
 ```
 
-## Documentation Map
-
-### Function-First Entry Points
-
-- [Architecture Overview](./architecture/README.md)
-- [Use Case Map](./use-cases/README.md)
-- [Platform And Operations](./platform/platform-and-operations.md)
-- [Target Project Runtime Guide](./runtime/target-project-runtime.md)
-- [Development Workflow](./development/entity-generation-and-custom-id-patterns.md)
-
-### Analysis Notes
-
-- [Hybrid Design Findings](./analysis/hybrid-design.md)
-
-## Repository Map
+## Documentation Order
 
 ```text
-context_engine/
-  main.py              CLI entrypoint for cross-project analysis
-  common.py            Root detection, index compatibility, JSON helpers
-  detect_feature.py    Feature matching across target services
-  load_context.py      Feature, flow, integration, and ext override loading
-  intent_detector.py   Intent classification with project fallback support
-  build_prompt.py      Final prompt and rewritten prompt builders
-  planner.py           Deterministic execution plan builder
-  discovery.py         Codebase inspection fallback when indexes do not match
-  learning.py          Learned keywords and feedback persistence
-  kb_updater.py        Optional write-back for newly discovered features
-
-bin/
-  aihelper             One-line launcher that targets the current directory
-
-ai/system/
-  intents.json         Default portable intent configuration
-  shared_keywords.json Shared seed keyword structure
-
 docs/
-  ...                  Function-first documentation tree
+  README.md
+  PROJECT-KNOWLEDGE-BASE.md
+  architecture/
+    function-mindmap.md
+    use-case-system-matrix.md
+    entity-crud-matrix.md
+  core/
+    README.md
+  features/
+    README.md
+  use-cases/
+    README.md
+  workflows/
+    README.md
+  integrations/
+    README.md
+  ai-agent/
+    README.md
+  platform/
+    platform-and-operations.md
+  runtime/
+    target-project-runtime.md
+  development/
+    entity-generation-and-custom-id-patterns.md
 ```
 
-## How To Navigate By Task
+## Example Project Mapping
 
-| If you are working on... | Start here |
+For a legacy PHP project like `/opt/homebrew/var/www/his`, map the code into business groups instead of folder names:
+
+| Project Area | Likely Docs Home |
 |---|---|
-| What this helper does and how the pieces fit | [Architecture Overview](./architecture/README.md) |
-| How to run it against `mindforme`, `signserver`, or `lms` | [Target Project Runtime Guide](./runtime/target-project-runtime.md) |
-| What changed relative to the source helpers | [Hybrid Design Findings](./analysis/hybrid-design.md) |
-| How to extend intents, planning, or KB write-back | [Development Workflow](./development/entity-generation-and-custom-id-patterns.md) |
+| `modules/outpatient_core`, `modules/inpatient_core`, `modules/bed_management` | `use-cases/` and `workflows/` |
+| `modules/billing`, `modules/insurance_hack` | `features/` and `integrations/` |
+| `modules/dept_*`, `modules/general_emr`, `modules/hsba` | `use-cases/` and `architecture/` |
+| `local/`, `server/`, `tool/`, `installer/` | `core/`, `platform/`, `development/` |
+| `docs/`, `assets/`, `tests/` | documentation, reference material, and verification notes |
+| `ai/` | AI feature, flow, and integration indexes |
 
-## Core Conventions
+## Output Expectations
 
-### Target-root-first execution
-
-- The helper repo stays stable and portable.
-- The current shell directory is treated as the target project unless `AIHELPER_TARGET_ROOT` or `--project-root` says otherwise.
-- The helper reads from the target repo's `ai/` folder and writes learning data back there when that folder exists.
-
-### Index compatibility
-
-- `features.json`, `flows.json`, and `integrations.json` can be either keyed objects like `{"features": [...]}` or raw arrays.
-- Feature payloads can come from either feature files in `ai/features/*.json` or directly from the feature index when no separate file exists.
-- Override discovery uses both explicit metadata like `related_ext_files` and filesystem heuristics like `ext` paths or `*Ext*` classes.
-
-### Documentation policy
-
-- Docs are organized by function first, then runtime and development usage.
-- Behavior-changing tasks should update both code and the relevant documentation page in this tree.
+- Keep the mindmap readable and business-first.
+- Keep the use-case docs concise but complete.
+- Always include flows in Mermaid where a process spans multiple steps.
+- Always link the docs together so a reader can move from overview to detail to matrix to AI index.
 
