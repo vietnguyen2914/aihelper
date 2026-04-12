@@ -9,12 +9,14 @@ print_guide() {
 aihelper - portable AI helper for projects that keep knowledge in ai/
 
 Usage:
+  aihelper "<prompt>"
   aihelper analyze "<prompt>"
   aihelper feedback "<prompt>" --intent "<intent>" [--features ...] [--accepted] [--rating N] [--notes "..."]
   aihelper feedback-summary
   aihelper rebuild-index
 
 Examples:
+  aihelper "trace upload flow"
   aihelper analyze "trace upload flow"
   aihelper feedback "trace upload flow" --intent upload_flow --features ingestion tracing
   aihelper feedback-summary
@@ -24,10 +26,17 @@ Notes:
   - If no command is given, this guide is shown.
   - Commands accept --project-root when you want to target another repository.
   - AIHELPER_TARGET_ROOT defaults to the current working directory.
+  - You can pipe a prompt on stdin for multiline input.
 EOF
 }
 
 if [[ $# -eq 0 ]]; then
+  if ! [[ -t 0 ]]; then
+    stdin_prompt="$(cat)"
+    if [[ -n "${stdin_prompt//[[:space:]]/}" ]]; then
+      exec python3 "$SCRIPT_DIR/../context_engine/main.py" analyze "$stdin_prompt"
+    fi
+  fi
   print_guide
   exit 0
 fi
@@ -45,6 +54,12 @@ case "$1" in
     exec python3 "$SCRIPT_DIR/../context_engine/main.py" "$@"
     ;;
   *)
-    exec python3 "$SCRIPT_DIR/../context_engine/main.py" analyze "$@"
+    if [[ "$1" == -* || ( $# -eq 1 && "$1" =~ [[:space:]] ) ]]; then
+      exec python3 "$SCRIPT_DIR/../context_engine/main.py" analyze "$@"
+    fi
+    echo "Unknown command: $1" >&2
+    echo >&2
+    print_guide >&2
+    exit 1
     ;;
 esac
