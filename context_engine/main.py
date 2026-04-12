@@ -28,6 +28,139 @@ except ImportError:
     from rebuild_index import rebuild_indexes
 
 
+def _format_markdown_scalar(value: Any) -> str:
+    if value is True:
+        return "true"
+    if value is False:
+        return "false"
+    if value is None:
+        return "none"
+    if isinstance(value, float):
+        return f"{value:.3f}".rstrip("0").rstrip(".")
+    return str(value)
+
+
+def _append_markdown_value(lines: list[str], key: str, value: Any, indent: int = 0) -> None:
+    prefix = "  " * indent + f"- **{key}**:"
+    if isinstance(value, dict):
+        lines.append(prefix)
+        if not value:
+            lines.append("  " * (indent + 1) + "- _empty_")
+            return
+        for nested_key, nested_value in value.items():
+            _append_markdown_value(lines, nested_key, nested_value, indent + 1)
+        return
+
+    if isinstance(value, list):
+        lines.append(prefix)
+        if not value:
+            lines.append("  " * (indent + 1) + "- _empty_")
+            return
+        for item in value:
+            if isinstance(item, dict):
+                lines.append("  " * (indent + 1) + "-")
+                for nested_key, nested_value in item.items():
+                    _append_markdown_value(lines, nested_key, nested_value, indent + 2)
+            else:
+                lines.append("  " * (indent + 1) + f"- {_format_markdown_scalar(item)}")
+        return
+
+    lines.append(f"{prefix} {_format_markdown_scalar(value)}")
+
+
+def render_markdown(title: str, data: Dict[str, Any]) -> str:
+    lines = [f"# {title}"]
+    for key, value in data.items():
+        _append_markdown_value(lines, key, value)
+    return "\n".join(lines)
+
+
+def render_analyze_markdown(result: Dict[str, Any]) -> str:
+    lines = ["# aihelper analysis"]
+
+    lines.append("## Overview")
+    lines.append(f"- **Input**: {result.get('input', '')}")
+    lines.append(f"- **Runtime**: {_format_markdown_scalar(result.get('runtime_ms', 0))} ms")
+    if result.get("mode"):
+        lines.append(f"- **Mode**: {result.get('mode', '')}")
+
+    lines.append("## Detected Intent")
+    detected_intent = result.get("detected_intent")
+    if isinstance(detected_intent, dict):
+        lines.append("```json")
+        lines.append(json.dumps(detected_intent, indent=2, ensure_ascii=False))
+        lines.append("```")
+    else:
+        lines.append(f"- {_format_markdown_scalar(detected_intent)}")
+
+    lines.append("## Detected Features")
+    detected_features = result.get("detected_features", [])
+    if detected_features:
+        for feature in detected_features:
+            service = feature.get("service", "unknown service")
+            name = feature.get("feature", "unknown feature")
+            score = feature.get("score", 0)
+            keywords = feature.get("matched_keywords", [])
+            keyword_text = ", ".join(str(keyword) for keyword in keywords) if keywords else "none"
+            lines.append(f"- **{service}**: {name} (score {_format_markdown_scalar(score)}, keywords: {keyword_text})")
+    else:
+        lines.append("- _none detected_")
+
+    lines.append("## Selected Context")
+    selected_context = result.get("selected_context", {})
+    if isinstance(selected_context, dict) and selected_context:
+        lines.append("```json")
+        lines.append(json.dumps(selected_context, indent=2, ensure_ascii=False))
+        lines.append("```")
+    else:
+        lines.append("- _none_")
+
+    lines.append("## Final Prompt")
+    lines.append("```text")
+    lines.append(result.get("final_prompt", ""))
+    lines.append("```")
+
+    lines.append("## Rewritten Prompt")
+    lines.append("```text")
+    lines.append(result.get("rewritten_prompt", ""))
+    lines.append("```")
+
+    execution_steps = result.get("execution_steps", [])
+    lines.append("## Execution Steps")
+    if execution_steps:
+        for index, step in enumerate(execution_steps, start=1):
+            if isinstance(step, dict):
+                step_name = step.get("step", f"step-{index}")
+                details = step.get("details")
+                output = step.get("output")
+                lines.append(f"{index}. **{step_name}**")
+                if details:
+                    lines.append(f"   - {details}")
+                if output is not None:
+                    lines.append("   - Output:")
+                    lines.append("```json")
+                    lines.append(json.dumps(output, indent=2, ensure_ascii=False))
+                    lines.append("```")
+            else:
+                lines.append(f"{index}. {_format_markdown_scalar(step)}")
+    else:
+        lines.append("- _none_")
+
+    lines.append("## Knowledge Base")
+    _append_markdown_value(lines, "kb_update", result.get("kb_update", {}))
+
+    lines.append("## Feedback Summary")
+    _append_markdown_value(lines, "feedback_summary", result.get("feedback_summary", {}))
+
+    if result.get("discovery_result") is not None:
+        lines.append("## Discovery Result")
+        lines.append("```json")
+        lines.append(json.dumps(result.get("discovery_result"), indent=2, ensure_ascii=False))
+        lines.append("```")
+
+    return "\n".join(lines)
+
+
 def analyze_request(
     user_prompt: str,
     max_context_chars: int = 12000,
@@ -156,7 +289,8 @@ def main() -> int:
     analyze_parser.add_argument("--max-context-chars", type=int, default=12000)
     analyze_parser.add_argument("--auto-update-kb", action="store_true")
     analyze_parser.add_argument("--project-root", default=None)
-    analyze_parser.add_argument("--format", choices=("json", "prompt"), default="json")
+    analyze_parser.add_argument("--json", "-json", action="store_true", default=False, help=argparse.SUPPRESS)
+    analyze_parser.add_argument("--format", choices=("json", "markdown", "prompt"), default="markdown")
 
     feedback_parser = subparsers.add_parser("feedback", help="Record prompt quality feedback.")
     feedback_parser.add_argument("user_prompt", help="The original prompt.")
@@ -166,9 +300,11 @@ def main() -> int:
     feedback_parser.add_argument("--rating", type=int, default=0)
     feedback_parser.add_argument("--notes", default="")
     feedback_parser.add_argument("--project-root", default=None)
+    feedback_parser.add_argument("--json", "-json", action="store_true", default=False, help=argparse.SUPPRESS)
 
     summary_parser = subparsers.add_parser("feedback-summary", aliases=["feedback_summary"], help="Print feedback summary.")
     summary_parser.add_argument("--project-root", default=None)
+    summary_parser.add_argument("--json", "-json", action="store_true", default=False, help=argparse.SUPPRESS)
 
     rebuild_parser = subparsers.add_parser(
         "rebuild-index",
@@ -176,12 +312,15 @@ def main() -> int:
         help="Rebuild ai/index from ai/features and ai/flows.",
     )
     rebuild_parser.add_argument("--project-root", default=None)
+    rebuild_parser.add_argument("--json", "-json", action="store_true", default=False, help=argparse.SUPPRESS)
 
     parser.add_argument("legacy_prompt", nargs="?", help=argparse.SUPPRESS)
     parser.add_argument("--project-root", dest="legacy_project_root", default=None, help=argparse.SUPPRESS)
-    parser.add_argument("--format", dest="legacy_format", choices=("json", "prompt"), default="json", help=argparse.SUPPRESS)
+    parser.add_argument("--format", dest="legacy_format", choices=("json", "markdown", "prompt"), default="markdown", help=argparse.SUPPRESS)
     parser.add_argument("--max-context-chars", dest="legacy_max_context_chars", type=int, default=12000, help=argparse.SUPPRESS)
     parser.add_argument("--auto-update-kb", dest="legacy_auto_update_kb", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--json", dest="legacy_json", action="store_true", default=False, help=argparse.SUPPRESS)
+    parser.add_argument("-json", dest="legacy_json", action="store_true", default=False, help=argparse.SUPPRESS)
 
     args = parser.parse_args()
     command = args.command or "analyze"
@@ -192,6 +331,7 @@ def main() -> int:
             parser.error("a user prompt is required")
         target_root = Path((getattr(args, "project_root", None) or args.legacy_project_root) or Path.cwd()).resolve()
         output_format = getattr(args, "format", None) or args.legacy_format
+        json_requested = bool(getattr(args, "json", False) or args.legacy_json)
         result = analyze_request(
             user_prompt,
             max_context_chars=getattr(args, "max_context_chars", None) or args.legacy_max_context_chars,
@@ -204,8 +344,10 @@ def main() -> int:
             return 0
         if output_format == "prompt":
             print(result["final_prompt"])
-        else:
+        elif json_requested or output_format == "json":
             print(json.dumps(result, indent=2, ensure_ascii=False))
+        else:
+            print(render_analyze_markdown(result))
         return 0
 
     if command == "feedback":
@@ -219,16 +361,27 @@ def main() -> int:
             notes=args.notes,
             root=target_root,
         )
-        print(json.dumps(summary, indent=2, ensure_ascii=False))
+        if getattr(args, "json", False):
+            print(json.dumps(summary, indent=2, ensure_ascii=False))
+        else:
+            print(render_markdown("Feedback Summary", summary))
         return 0
 
     if command == "rebuild-index":
         target_root = Path(args.project_root or Path.cwd()).resolve()
-        print(json.dumps(rebuild_indexes(target_root), indent=2, ensure_ascii=False))
+        result = rebuild_indexes(target_root)
+        if getattr(args, "json", False):
+            print(json.dumps(result, indent=2, ensure_ascii=False))
+        else:
+            print(render_markdown("Rebuild Index", result))
         return 0
 
     target_root = Path(args.project_root or Path.cwd()).resolve()
-    print(json.dumps(feedback_summary(root=target_root), indent=2, ensure_ascii=False))
+    result = feedback_summary(root=target_root)
+    if getattr(args, "json", False):
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+    else:
+        print(render_markdown("Feedback Summary", result))
     return 0
 
 
