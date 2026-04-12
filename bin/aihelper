@@ -4,12 +4,44 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export AIHELPER_TARGET_ROOT="${AIHELPER_TARGET_ROOT:-$PWD}"
 
+print_guide() {
+  cat <<'EOF'
+aihelper - portable AI helper for projects that keep knowledge in ai/
+
+Usage:
+  aihelper analyze "<prompt>"
+  aihelper feedback "<prompt>" --intent "<intent>" [--features ...] [--accepted] [--rating N] [--notes "..."]
+  aihelper feedback-summary
+  aihelper rebuild-index
+
+Examples:
+  aihelper analyze "trace upload flow"
+  aihelper feedback "trace upload flow" --intent upload_flow --features ingestion tracing
+  aihelper feedback-summary
+  aihelper rebuild-index
+
+Notes:
+  - If no command is given, this guide is shown.
+  - Commands accept --project-root when you want to target another repository.
+  - AIHELPER_TARGET_ROOT defaults to the current working directory.
+EOF
+}
+
 if [[ $# -eq 0 ]]; then
-  exec python3 "$SCRIPT_DIR/../context_engine/main.py"
+  print_guide
+  exit 0
 fi
 
 case "$1" in
-  analyze|feedback|feedback-summary)
+  -h|--help|help)
+    print_guide
+    exit 0
+    ;;
+  analyze|feedback|feedback-summary|feedback_summary|rebuild-index|rebuild_index)
+    case "$1" in
+      rebuild_index) set -- rebuild-index "${@:2}" ;;
+      feedback_summary) set -- feedback-summary "${@:2}" ;;
+    esac
     exec python3 "$SCRIPT_DIR/../context_engine/main.py" "$@"
     ;;
   *)

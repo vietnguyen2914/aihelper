@@ -15,6 +15,7 @@ try:
     from .kb_updater import update_ai_kb
     from .learning import feedback_summary, record_feedback
     from .load_context import load_context_bundle
+    from .rebuild_index import rebuild_indexes
 except ImportError:
     from build_prompt import build_prompt, rewrite_prompt
     from detect_feature import detect_feature_matches, detect_features
@@ -24,6 +25,7 @@ except ImportError:
     from kb_updater import update_ai_kb
     from learning import feedback_summary, record_feedback
     from load_context import load_context_bundle
+    from rebuild_index import rebuild_indexes
 
 
 def analyze_request(
@@ -165,8 +167,15 @@ def main() -> int:
     feedback_parser.add_argument("--notes", default="")
     feedback_parser.add_argument("--project-root", default=None)
 
-    summary_parser = subparsers.add_parser("feedback-summary", help="Print feedback summary.")
+    summary_parser = subparsers.add_parser("feedback-summary", aliases=["feedback_summary"], help="Print feedback summary.")
     summary_parser.add_argument("--project-root", default=None)
+
+    rebuild_parser = subparsers.add_parser(
+        "rebuild-index",
+        aliases=["rebuild_index"],
+        help="Rebuild ai/index from ai/features and ai/flows.",
+    )
+    rebuild_parser.add_argument("--project-root", default=None)
 
     parser.add_argument("legacy_prompt", nargs="?", help=argparse.SUPPRESS)
     parser.add_argument("--project-root", dest="legacy_project_root", default=None, help=argparse.SUPPRESS)
@@ -211,6 +220,11 @@ def main() -> int:
             root=target_root,
         )
         print(json.dumps(summary, indent=2, ensure_ascii=False))
+        return 0
+
+    if command == "rebuild-index":
+        target_root = Path(args.project_root or Path.cwd()).resolve()
+        print(json.dumps(rebuild_indexes(target_root), indent=2, ensure_ascii=False))
         return 0
 
     target_root = Path(args.project_root or Path.cwd()).resolve()
