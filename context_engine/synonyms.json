@@ -1,0 +1,8 @@
+{
+  "timeout": ["timeout", "hết hạn", "quá thời gian"],
+  "upload": ["upload", "tải lên", "up file"],
+  "file": ["file", "tệp", "tập tin"],
+  "error": ["error", "lỗi"],
+  "storage": ["storage", "lưu trữ"],
+  "s3": ["s3", "bucket", "aws"]
+}
