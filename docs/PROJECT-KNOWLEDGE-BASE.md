@@ -34,6 +34,14 @@ AIHELPER_TARGET_ROOT=/opt/homebrew/var/www/his /Users/vietnguyen/github/aihelper
 /Users/vietnguyen/github/aihelper/bin/aihelper analyze "trace patient intake flow" --format prompt
 ```
 
+### JSON output
+
+```bash
+/Users/vietnguyen/github/aihelper/bin/aihelper analyze "trace patient intake flow" --json
+```
+
+The default output for normal analysis and summary commands is structured Markdown.
+
 ## Documentation Order
 
 ```text
@@ -83,4 +91,3 @@ For a legacy PHP project like `/opt/homebrew/var/www/his`, map the code into bus
 - Keep the use-case docs concise but complete.
 - Always include flows in Mermaid where a process spans multiple steps.
 - Always link the docs together so a reader can move from overview to detail to matrix to AI index.
-

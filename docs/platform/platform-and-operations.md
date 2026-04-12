@@ -8,7 +8,7 @@
 
 ## Output shape
 
-The default output is JSON with:
+The default output is structured Markdown with the same information surfaced in sections for:
 
 - `detected_intent`
 - `detected_features`
@@ -17,6 +17,8 @@ The default output is JSON with:
 - `rewritten_prompt`
 - `execution_steps`
 - `feedback_summary`
+
+Use `--json` or `-json` if you need the raw JSON object instead.
 
 ## Operational choices
 

@@ -14,9 +14,12 @@ Available commands:
 /Users/vietnguyen/github/aihelper/bin/aihelper
 /Users/vietnguyen/github/aihelper/bin/aihelper "trace upload flow"
 /Users/vietnguyen/github/aihelper/bin/aihelper analyze "trace upload flow"
+/Users/vietnguyen/github/aihelper/bin/aihelper analyze "trace upload flow" --json
 /Users/vietnguyen/github/aihelper/bin/aihelper feedback "trace upload flow" --intent upload_flow
 /Users/vietnguyen/github/aihelper/bin/aihelper feedback-summary
 /Users/vietnguyen/github/aihelper/bin/aihelper rebuild-index
 ```
+
+The default output format is structured Markdown. Use `--json` or `-json` when you need machine-readable output.
 
 Docs: [docs/README.md](/Users/vietnguyen/github/aihelper/docs/README.md)

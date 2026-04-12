@@ -29,9 +29,12 @@ python3 /Users/vietnguyen/github/aihelper/context_engine/main.py analyze "trace 
 
 Use this when you want explicit flags like:
 
+- `--json`
 - `--format prompt`
 - `--max-context-chars 8000`
 - `--auto-update-kb`
+
+By default, the helper prints structured Markdown instead of JSON.
 
 ## Ollama fallback
 
