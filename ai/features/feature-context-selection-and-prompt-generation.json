@@ -1,0 +1,50 @@
+{
+  "name": "feature_context_selection_and_prompt_generation",
+  "purpose": "Detect the most relevant business feature group for a request, load the matching context bundle, and produce a prompt plus execution plan for downstream AI agents.",
+  "entry_points": [
+    "context_engine/main.py analyze_request",
+    "context_engine/detect_feature.py detect_feature_matches",
+    "context_engine/load_context.py load_context_bundle",
+    "context_engine/build_prompt.py build_prompt",
+    "context_engine/planner.py build_execution_plan"
+  ],
+  "core_entities": [
+    "detected_intent",
+    "detected_features",
+    "selected_context",
+    "rewritten_prompt",
+    "final_prompt",
+    "execution_steps"
+  ],
+  "related_ext_files": [
+    {
+      "path": "context_engine/detect_feature.py",
+      "role": "Ranks business features using feature metadata, learned keywords, entry points, and core entities."
+    },
+    {
+      "path": "context_engine/load_context.py",
+      "role": "Builds a service-aware context bundle containing features, flows, integrations, and override paths."
+    },
+    {
+      "path": "context_engine/build_prompt.py",
+      "role": "Builds the final prompt and the structured prompt-rewrite variant for AI agents."
+    },
+    {
+      "path": "context_engine/planner.py",
+      "role": "Creates deterministic execution steps from the selected feature context and detected intent."
+    },
+    {
+      "path": "context_engine/intent_detector.py",
+      "role": "Classifies the request into planning styles like investigate, repair, validate, or implement."
+    }
+  ],
+  "overlaps": [
+    "target_project_resolution_and_service_discovery",
+    "discovery_and_llm_fallback_or_handoff",
+    "feedback_and_adaptive_learning"
+  ],
+  "notes": [
+    "This is the primary happy-path feature for known business features already represented under /ai.",
+    "The output is structured so multiple AI agents can consume the same result consistently."
+  ]
+}

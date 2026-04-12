@@ -1,0 +1,18 @@
+{
+  "name": "handoff_unknown_feature_to_external_llm",
+  "feature": "discovery_and_llm_fallback_or_handoff",
+  "entry_point": "context_engine/main.py prompt_only path when Ollama is unavailable",
+  "steps": [
+    "context_engine/discovery.py discover_feature_from_codebase builds a compact snapshot",
+    "context_engine/ollama_fallback.py build_manual_fallback_prompt creates a short GPT or Claude handoff prompt",
+    "context_engine/main.py prints the handoff prompt to console"
+  ],
+  "db_interactions": [
+    "codebase snapshot"
+  ],
+  "ext_usage": [
+    "context_engine/discovery.py",
+    "context_engine/ollama_fallback.py",
+    "context_engine/main.py"
+  ]
+}

@@ -1,0 +1,44 @@
+{
+  "name": "knowledge_base_generation_and_self_healing",
+  "purpose": "Generate and update the AI knowledge base under /ai so the helper can persist new business features, flows, and indexes instead of relying only on runtime discovery.",
+  "entry_points": [
+    "context_engine/kb_updater.py update_ai_kb",
+    "context_engine/main.py analyze --auto-update-kb",
+    "docs/PROJECT-KNOWLEDGE-BASE.md kickoff workflow",
+    "docs/analysis/project-kb-generation.md"
+  ],
+  "core_entities": [
+    "ai/index/features.json",
+    "ai/index/flows.json",
+    "ai/index/integrations.json",
+    "ai/features/*.json",
+    "ai/flows/*.json"
+  ],
+  "related_ext_files": [
+    {
+      "path": "context_engine/kb_updater.py",
+      "role": "Validates discovery results and writes new feature and flow JSON files without overwriting existing knowledge."
+    },
+    {
+      "path": "context_engine/common.py",
+      "role": "Provides safe JSON load and write helpers used to update the AI indexes."
+    },
+    {
+      "path": "docs/PROJECT-KNOWLEDGE-BASE.md",
+      "role": "Defines the project kickoff workflow that leads from discovery to KB generation."
+    },
+    {
+      "path": "docs/analysis/project-kb-generation.md",
+      "role": "Captures the delivery order and constraints for building a reusable project knowledge base."
+    }
+  ],
+  "overlaps": [
+    "target_project_resolution_and_service_discovery",
+    "discovery_and_llm_fallback_or_handoff",
+    "feedback_and_adaptive_learning"
+  ],
+  "notes": [
+    "Write-back is intentionally gated by confidence and existence checks to avoid low-quality KB mutations.",
+    "This feature turns one-off discovery into durable project knowledge."
+  ]
+}

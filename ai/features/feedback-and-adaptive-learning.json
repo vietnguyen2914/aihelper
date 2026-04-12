@@ -1,0 +1,45 @@
+{
+  "name": "feedback_and_adaptive_learning",
+  "purpose": "Persist feedback, learned keywords, and intent adjustments so the helper can improve future feature detection and prompt selection across repeated use.",
+  "entry_points": [
+    "context_engine/main.py feedback",
+    "context_engine/main.py feedback-summary",
+    "context_engine/learning.py record_feedback",
+    "context_engine/intent_detector.py detect_intent",
+    "context_engine/detect_feature.py feature_keywords"
+  ],
+  "core_entities": [
+    "ai/system/intents.json",
+    "ai/system/shared_keywords.json",
+    "learned_keywords.json",
+    "feedback_log.json",
+    "intent keyword weights",
+    "feature keyword weights"
+  ],
+  "related_ext_files": [
+    {
+      "path": "context_engine/learning.py",
+      "role": "Stores feedback summaries, learned keywords, and rolling prompt acceptance data."
+    },
+    {
+      "path": "context_engine/intent_detector.py",
+      "role": "Uses learned intent weights to refine future planning-style detection."
+    },
+    {
+      "path": "context_engine/detect_feature.py",
+      "role": "Uses learned feature weights to improve feature ranking."
+    },
+    {
+      "path": "ai/system/intents.json",
+      "role": "Provides the base intent configuration that learning builds on top of."
+    }
+  ],
+  "overlaps": [
+    "feature_context_selection_and_prompt_generation",
+    "knowledge_base_generation_and_self_healing"
+  ],
+  "notes": [
+    "Learning data can live in the target project when that project has an ai/system directory, otherwise the helper falls back to its own shared system folder.",
+    "This feature improves routing quality without changing the underlying business features directly."
+  ]
+}

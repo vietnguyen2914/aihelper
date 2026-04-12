@@ -1,0 +1,22 @@
+{
+  "name": "update_ai_knowledge_base_from_discovery",
+  "feature": "knowledge_base_generation_and_self_healing",
+  "entry_point": "context_engine/main.py analyze --auto-update-kb",
+  "steps": [
+    "context_engine/main.py receives a parsed discovery_result",
+    "context_engine/kb_updater.py validates confidence and existence rules",
+    "context_engine/kb_updater.py writes ai/features/<feature>.json if missing",
+    "context_engine/kb_updater.py writes ai/flows/<flow>.json for discovered flows",
+    "context_engine/kb_updater.py updates ai/index/features.json and ai/index/flows.json"
+  ],
+  "db_interactions": [
+    "ai/features/*.json",
+    "ai/flows/*.json",
+    "ai/index/features.json",
+    "ai/index/flows.json"
+  ],
+  "ext_usage": [
+    "context_engine/kb_updater.py",
+    "context_engine/main.py"
+  ]
+}

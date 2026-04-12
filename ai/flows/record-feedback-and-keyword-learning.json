@@ -1,0 +1,21 @@
+{
+  "name": "record_feedback_and_keyword_learning",
+  "feature": "feedback_and_adaptive_learning",
+  "entry_point": "context_engine/main.py feedback and feedback-summary",
+  "steps": [
+    "context_engine/main.py parses corrected intent and features",
+    "context_engine/learning.py record_feedback updates token weights",
+    "context_engine/learning.py writes learned_keywords.json and feedback_log.json",
+    "context_engine/intent_detector.py and context_engine/detect_feature.py read learned weights on later runs"
+  ],
+  "db_interactions": [
+    "ai/system/learned_keywords.json",
+    "ai/system/feedback_log.json",
+    "ai/system/intents.json"
+  ],
+  "ext_usage": [
+    "context_engine/learning.py",
+    "context_engine/intent_detector.py",
+    "context_engine/detect_feature.py"
+  ]
+}
