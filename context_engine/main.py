@@ -11,7 +11,7 @@ try:
     from .detect_feature import detect_feature_matches, detect_features
     from .discovery import discover_feature_from_codebase
     from .intent_detector import detect_intent
-    from .ollama_fallback import build_discovery_prompt, generate_with_ollama
+    from .ollama_fallback import build_discovery_prompt, build_manual_fallback_prompt, generate_with_ollama
     from .kb_updater import update_ai_kb
     from .learning import feedback_summary, record_feedback
     from .load_context import load_context_bundle
@@ -20,7 +20,7 @@ except ImportError:
     from detect_feature import detect_feature_matches, detect_features
     from discovery import discover_feature_from_codebase
     from intent_detector import detect_intent
-    from ollama_fallback import build_discovery_prompt, generate_with_ollama
+    from ollama_fallback import build_discovery_prompt, build_manual_fallback_prompt, generate_with_ollama
     from kb_updater import update_ai_kb
     from learning import feedback_summary, record_feedback
     from load_context import load_context_bundle
@@ -82,7 +82,7 @@ def analyze_request(
                 }
                 return result
 
-        prompt_fallback = discovery_prompt
+        prompt_fallback = build_manual_fallback_prompt(user_prompt, root=root)
         result = {
             "input": user_prompt,
             "detected_intent": intent,
@@ -97,7 +97,7 @@ def analyze_request(
             "final_prompt": build_prompt(user_prompt, {"target_root": str(root.resolve()) if root else "", "services": []}),
             "rewritten_prompt": user_prompt,
             "execution_steps": [
-                {"step": "discover", "details": "No indexed feature matched. Use the discovery prompt with GPT or Claude."}
+                {"step": "discover", "details": "No indexed feature matched. Use the short discovery prompt with GPT or Claude."}
             ],
             "discovery_result": discovery_result,
             "kb_update": kb_update,

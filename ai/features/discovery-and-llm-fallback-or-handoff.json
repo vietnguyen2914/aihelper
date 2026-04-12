@@ -1,0 +1,40 @@
+{
+  "name": "discovery_and_llm_fallback_or_handoff",
+  "purpose": "Handle requests that do not match the current AI indexes by inspecting the codebase, asking a local Ollama model for structured discovery, or producing a short handoff prompt for GPT or Claude.",
+  "entry_points": [
+    "context_engine/main.py analyze_request unmatched-feature path",
+    "context_engine/discovery.py discover_feature_from_codebase",
+    "context_engine/ollama_fallback.py build_discovery_prompt",
+    "context_engine/ollama_fallback.py generate_with_ollama",
+    "context_engine/ollama_fallback.py build_manual_fallback_prompt"
+  ],
+  "core_entities": [
+    "discovery_result",
+    "discovery_prompt",
+    "prompt_fallback",
+    "ollama model",
+    "codebase snapshot"
+  ],
+  "related_ext_files": [
+    {
+      "path": "context_engine/discovery.py",
+      "role": "Builds a lightweight snapshot of controllers, services, entities, and pages from the current codebase."
+    },
+    {
+      "path": "context_engine/ollama_fallback.py",
+      "role": "Generates strict JSON discovery prompts, resolves local Ollama models, and creates compact GPT or Claude handoff prompts."
+    },
+    {
+      "path": "context_engine/main.py",
+      "role": "Chooses between Ollama discovery and manual handoff when no indexed feature matches."
+    }
+  ],
+  "overlaps": [
+    "feature_context_selection_and_prompt_generation",
+    "knowledge_base_generation_and_self_healing"
+  ],
+  "notes": [
+    "The Ollama request path enforces JSON output so the discovery response can be parsed safely.",
+    "If Ollama is down or no model can be resolved, the helper prints a short prompt that can be pasted into GPT or Claude."
+  ]
+}

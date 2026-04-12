@@ -1,0 +1,32 @@
+[
+  {
+    "source_feature": "target_project_resolution_and_service_discovery",
+    "target_feature": "feature_context_selection_and_prompt_generation",
+    "interaction_type": "shared service",
+    "description": "Target-root and service discovery provide the normalized indexes and service descriptors that feature detection and context loading consume."
+  },
+  {
+    "source_feature": "feature_context_selection_and_prompt_generation",
+    "target_feature": "discovery_and_llm_fallback_or_handoff",
+    "interaction_type": "shared service",
+    "description": "When no feature scores highly enough, the analyze flow hands control to discovery and local-model fallback instead of returning an empty result."
+  },
+  {
+    "source_feature": "discovery_and_llm_fallback_or_handoff",
+    "target_feature": "knowledge_base_generation_and_self_healing",
+    "interaction_type": "shared service",
+    "description": "Structured discovery output can be promoted into persistent feature and flow JSON files when confidence is high enough."
+  },
+  {
+    "source_feature": "feedback_and_adaptive_learning",
+    "target_feature": "feature_context_selection_and_prompt_generation",
+    "interaction_type": "shared service",
+    "description": "Learned intent and feature keyword weights influence future ranking, prompt selection, and context routing."
+  },
+  {
+    "source_feature": "knowledge_base_generation_and_self_healing",
+    "target_feature": "target_project_resolution_and_service_discovery",
+    "interaction_type": "DB",
+    "description": "Generated AI indexes become the persisted source of truth that later runs rediscover and normalize."
+  }
+]

@@ -1,0 +1,22 @@
+{
+  "name": "discover_unknown_feature_with_ollama",
+  "feature": "discovery_and_llm_fallback_or_handoff",
+  "entry_point": "context_engine/main.py analyze_request unmatched-feature path",
+  "steps": [
+    "context_engine/discovery.py discover_feature_from_codebase",
+    "context_engine/ollama_fallback.py build_discovery_prompt",
+    "context_engine/ollama_fallback.py generate_with_ollama",
+    "context_engine/main.py parses the returned JSON",
+    "context_engine/main.py returns discovery_result in discover_feature execution step"
+  ],
+  "db_interactions": [
+    "ai/index/features.json",
+    "ai/index/flows.json",
+    "codebase snapshot"
+  ],
+  "ext_usage": [
+    "context_engine/discovery.py",
+    "context_engine/ollama_fallback.py",
+    "context_engine/main.py"
+  ]
+}

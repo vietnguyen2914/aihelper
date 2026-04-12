@@ -1,0 +1,22 @@
+{
+  "name": "resolve_target_project_and_service_map",
+  "feature": "target_project_resolution_and_service_discovery",
+  "entry_point": "bin/aihelper -> context_engine/main.py analyze",
+  "steps": [
+    "bin/aihelper exports AIHELPER_TARGET_ROOT",
+    "context_engine/main.py parses command and root overrides",
+    "context_engine/common.py project_root resolves the active repository",
+    "context_engine/common.py discover_services scans for ai/index/features.json",
+    "context_engine/common.py loads normalized feature, flow, and integration indexes"
+  ],
+  "db_interactions": [
+    "ai/index/features.json",
+    "ai/index/flows.json",
+    "ai/index/integrations.json"
+  ],
+  "ext_usage": [
+    "bin/aihelper",
+    "context_engine/common.py",
+    "context_engine/main.py"
+  ]
+}

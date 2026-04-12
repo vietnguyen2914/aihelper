@@ -1,0 +1,40 @@
+{
+  "name": "target_project_resolution_and_service_discovery",
+  "purpose": "Resolve the active project root, discover one or more AI-enabled services, and normalize index access so the helper can analyze the correct repository context.",
+  "entry_points": [
+    "CLI ~/github/aihelper/bin/aihelper",
+    "context_engine/main.py analyze",
+    "context_engine/common.py project_root",
+    "context_engine/common.py discover_services"
+  ],
+  "core_entities": [
+    "AIHELPER_TARGET_ROOT",
+    "target_root",
+    "service descriptor",
+    "feature index",
+    "flow index",
+    "integration index"
+  ],
+  "related_ext_files": [
+    {
+      "path": "bin/aihelper",
+      "role": "Sets the effective target root from the current shell directory and dispatches the analyze command by default."
+    },
+    {
+      "path": "context_engine/common.py",
+      "role": "Resolves the active project root, scans for AI-enabled services, and normalizes index file loading."
+    },
+    {
+      "path": "context_engine/main.py",
+      "role": "Passes project-root settings through the CLI into the runtime analysis flow."
+    }
+  ],
+  "overlaps": [
+    "feature_context_selection_and_prompt_generation",
+    "knowledge_base_generation_and_self_healing"
+  ],
+  "notes": [
+    "The helper can analyze itself or another repository depending on the current working directory or explicit project-root override.",
+    "Index loading supports both keyed JSON objects and raw JSON arrays."
+  ]
+}

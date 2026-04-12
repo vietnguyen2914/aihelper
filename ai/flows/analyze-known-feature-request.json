@@ -1,0 +1,27 @@
+{
+  "name": "analyze_known_feature_request",
+  "feature": "feature_context_selection_and_prompt_generation",
+  "entry_point": "context_engine/main.py analyze_request with matched features",
+  "steps": [
+    "context_engine/intent_detector.py detect_intent",
+    "context_engine/detect_feature.py detect_features",
+    "context_engine/detect_feature.py detect_feature_matches",
+    "context_engine/load_context.py load_context_bundle",
+    "context_engine/build_prompt.py rewrite_prompt",
+    "context_engine/build_prompt.py build_prompt",
+    "context_engine/planner.py build_execution_plan",
+    "context_engine/main.py returns the final JSON result"
+  ],
+  "db_interactions": [
+    "ai/index/features.json",
+    "ai/index/flows.json",
+    "ai/index/integrations.json",
+    "ai/features/*.json"
+  ],
+  "ext_usage": [
+    "context_engine/detect_feature.py",
+    "context_engine/load_context.py",
+    "context_engine/build_prompt.py",
+    "context_engine/planner.py"
+  ]
+}

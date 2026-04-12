@@ -22,7 +22,7 @@ except ImportError:
 
 
 DEFAULT_OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://localhost:11434")
-DEFAULT_MODEL = os.environ.get("OLLAMA_MODEL", "qwen2.5")
+DEFAULT_MODEL = os.environ.get("OLLAMA_MODEL", "qwen2.5:latest")
 
 
 def build_discovery_prompt(user_prompt: str, root: Path | None = None) -> str:
@@ -66,6 +66,18 @@ def build_discovery_prompt(user_prompt: str, root: Path | None = None) -> str:
     )
 
 
+def build_manual_fallback_prompt(user_prompt: str, root: Path | None = None) -> str:
+    """Build a short prompt for GPT or Claude when Ollama is unavailable."""
+    discovery = discover_feature_from_codebase(user_prompt, root=root)
+    return (
+        "You are a senior software architect.\n"
+        "Discover the likely feature from this codebase and return STRICT JSON only.\n"
+        f"User request: {user_prompt}\n"
+        f"Codebase snapshot: {json.dumps(discovery, ensure_ascii=False)}\n"
+        "Return: feature_name, exists_in_codebase, confidence, keywords, components, flows, suggested_ai_feature."
+    )
+
+
 def _request_json(method: str, url: str, payload: Optional[dict] = None, timeout: int = 20) -> dict:
     body = None
     headers = {"Content-Type": "application/json"}
@@ -77,25 +89,65 @@ def _request_json(method: str, url: str, payload: Optional[dict] = None, timeout
     return json.loads(raw)
 
 
-def model_available(model: str = DEFAULT_MODEL, base_url: str = DEFAULT_OLLAMA_URL) -> bool:
+def _available_models(base_url: str = DEFAULT_OLLAMA_URL) -> list[str]:
     try:
         data = _request_json("GET", f"{base_url}/api/tags")
     except (URLError, HTTPError, TimeoutError, json.JSONDecodeError, OSError):
-        return False
+        return []
 
     models = data.get("models", [])
     if not isinstance(models, list):
-        return False
+        return []
 
+    names: list[str] = []
     for item in models:
-        if isinstance(item, dict) and item.get("name") == model:
-            return True
-    return False
+        if not isinstance(item, dict):
+            continue
+        name = item.get("name") or item.get("model")
+        if isinstance(name, str) and name.strip():
+            names.append(name.strip())
+    return names
+
+
+def _normalize_model_name(model: str) -> str:
+    return model.strip().lower()
+
+
+def _resolve_model(model: str = DEFAULT_MODEL, base_url: str = DEFAULT_OLLAMA_URL) -> str | None:
+    """Resolve the best local Ollama model name, preferring the requested model."""
+    requested = _normalize_model_name(model)
+    names = _available_models(base_url=base_url)
+    if not names:
+        return None
+
+    normalized = {name.lower(): name for name in names}
+
+    if requested in normalized:
+        return normalized[requested]
+
+    # Accept prefix matches like "qwen2.5" -> "qwen2.5:latest"
+    for name in names:
+        lowered = name.lower()
+        if lowered.startswith(requested + ":") or lowered == requested:
+            return name
+
+    # Prefer any qwen2.5 family model if the exact request is unavailable.
+    if requested.startswith("qwen2.5") or "qwen2.5" in requested:
+        for name in names:
+            if name.lower().startswith("qwen2.5"):
+                return name
+
+    return names[0]
+
+
+def model_available(model: str = DEFAULT_MODEL, base_url: str = DEFAULT_OLLAMA_URL) -> bool:
+    return _resolve_model(model=model, base_url=base_url) is not None
 
 
 def generate_with_ollama(prompt: str, model: str = DEFAULT_MODEL, base_url: str = DEFAULT_OLLAMA_URL) -> Tuple[Optional[str], bool]:
     """Generate text with Ollama when the model is available."""
-    if not model_available(model=model, base_url=base_url):
+    resolved_model = _resolve_model(model=model, base_url=base_url)
+    if not resolved_model:
         return None, False
 
     try:
@@ -103,9 +155,10 @@ def generate_with_ollama(prompt: str, model: str = DEFAULT_MODEL, base_url: str 
             "POST",
             f"{base_url}/api/generate",
             payload={
-                "model": model,
+                "model": resolved_model,
                 "prompt": prompt,
                 "stream": False,
+                "format": "json",
             },
         )
     except (URLError, HTTPError, TimeoutError, json.JSONDecodeError, OSError):
@@ -115,4 +168,3 @@ def generate_with_ollama(prompt: str, model: str = DEFAULT_MODEL, base_url: str 
     if isinstance(response, str) and response.strip():
         return response, True
     return None, False
-

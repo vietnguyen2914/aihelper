@@ -1,0 +1,145 @@
+[
+  {
+    "name": "target_project_resolution_and_service_discovery",
+    "purpose": "Resolve the active project root, discover one or more AI-enabled services, and normalize index access so the helper can analyze the correct repository context.",
+    "entry_points": [
+      "CLI ~/github/aihelper/bin/aihelper",
+      "context_engine/main.py analyze",
+      "context_engine/common.py project_root",
+      "context_engine/common.py discover_services"
+    ],
+    "core_entities": [
+      "AIHELPER_TARGET_ROOT",
+      "target_root",
+      "service descriptor",
+      "feature index",
+      "flow index",
+      "integration index"
+    ],
+    "related_ext_files": [
+      "bin/aihelper",
+      "context_engine/common.py",
+      "context_engine/main.py"
+    ],
+    "overlaps": [
+      "feature_context_selection_and_prompt_generation",
+      "knowledge_base_generation_and_self_healing"
+    ]
+  },
+  {
+    "name": "feature_context_selection_and_prompt_generation",
+    "purpose": "Detect the most relevant business feature group for a request, load the matching context bundle, and produce a prompt plus execution plan for downstream AI agents.",
+    "entry_points": [
+      "context_engine/main.py analyze_request",
+      "context_engine/detect_feature.py detect_feature_matches",
+      "context_engine/load_context.py load_context_bundle",
+      "context_engine/build_prompt.py build_prompt",
+      "context_engine/planner.py build_execution_plan"
+    ],
+    "core_entities": [
+      "detected_intent",
+      "detected_features",
+      "selected_context",
+      "rewritten_prompt",
+      "final_prompt",
+      "execution_steps"
+    ],
+    "related_ext_files": [
+      "context_engine/detect_feature.py",
+      "context_engine/load_context.py",
+      "context_engine/build_prompt.py",
+      "context_engine/planner.py",
+      "context_engine/intent_detector.py"
+    ],
+    "overlaps": [
+      "target_project_resolution_and_service_discovery",
+      "discovery_and_llm_fallback_or_handoff",
+      "feedback_and_adaptive_learning"
+    ]
+  },
+  {
+    "name": "discovery_and_llm_fallback_or_handoff",
+    "purpose": "Handle requests that do not match the current AI indexes by inspecting the codebase, asking a local Ollama model for structured discovery, or producing a short handoff prompt for GPT or Claude.",
+    "entry_points": [
+      "context_engine/main.py analyze_request unmatched path",
+      "context_engine/discovery.py discover_feature_from_codebase",
+      "context_engine/ollama_fallback.py build_discovery_prompt",
+      "context_engine/ollama_fallback.py generate_with_ollama",
+      "context_engine/ollama_fallback.py build_manual_fallback_prompt"
+    ],
+    "core_entities": [
+      "discovery_result",
+      "discovery_prompt",
+      "prompt_fallback",
+      "ollama model",
+      "codebase snapshot"
+    ],
+    "related_ext_files": [
+      "context_engine/discovery.py",
+      "context_engine/ollama_fallback.py",
+      "context_engine/main.py"
+    ],
+    "overlaps": [
+      "feature_context_selection_and_prompt_generation",
+      "knowledge_base_generation_and_self_healing"
+    ]
+  },
+  {
+    "name": "knowledge_base_generation_and_self_healing",
+    "purpose": "Generate and update the AI knowledge base under /ai so the helper can persist new business features, flows, and indexes instead of relying only on runtime discovery.",
+    "entry_points": [
+      "context_engine/kb_updater.py update_ai_kb",
+      "context_engine/main.py analyze --auto-update-kb",
+      "docs/PROJECT-KNOWLEDGE-BASE.md kickoff workflow",
+      "docs/analysis/project-kb-generation.md"
+    ],
+    "core_entities": [
+      "ai/index/features.json",
+      "ai/index/flows.json",
+      "ai/index/integrations.json",
+      "ai/features/*.json",
+      "ai/flows/*.json"
+    ],
+    "related_ext_files": [
+      "context_engine/kb_updater.py",
+      "context_engine/common.py",
+      "docs/PROJECT-KNOWLEDGE-BASE.md",
+      "docs/analysis/project-kb-generation.md"
+    ],
+    "overlaps": [
+      "target_project_resolution_and_service_discovery",
+      "discovery_and_llm_fallback_or_handoff",
+      "feedback_and_adaptive_learning"
+    ]
+  },
+  {
+    "name": "feedback_and_adaptive_learning",
+    "purpose": "Persist feedback, learned keywords, and intent adjustments so the helper can improve future feature detection and prompt selection across repeated use.",
+    "entry_points": [
+      "context_engine/main.py feedback",
+      "context_engine/main.py feedback-summary",
+      "context_engine/learning.py record_feedback",
+      "context_engine/intent_detector.py detect_intent",
+      "context_engine/detect_feature.py feature_keywords"
+    ],
+    "core_entities": [
+      "ai/system/intents.json",
+      "ai/system/shared_keywords.json",
+      "learned_keywords.json",
+      "feedback_log.json",
+      "intent keyword weights",
+      "feature keyword weights"
+    ],
+    "related_ext_files": [
+      "context_engine/learning.py",
+      "context_engine/intent_detector.py",
+      "context_engine/detect_feature.py",
+      "ai/system/intents.json",
+      "ai/system/shared_keywords.json"
+    ],
+    "overlaps": [
+      "feature_context_selection_and_prompt_generation",
+      "knowledge_base_generation_and_self_healing"
+    ]
+  }
+]
