@@ -1,0 +1,18 @@
+{
+  "patient": ["bệnh nhân"],
+  "doctor": ["bác sĩ"],
+  "hospital": ["bệnh viện"],
+  "medical_record": ["hồ sơ bệnh án", "bệnh án"],
+  "prescription": ["đơn thuốc"],
+  "appointment": ["lịch hẹn", "cuộc hẹn"],
+  "insurance": ["bảo hiểm", "bhyt"],
+  "diagnosis": ["chẩn đoán"],
+  "treatment": ["điều trị"],
+  "test": ["xét nghiệm"],
+  "result": ["kết quả"],
+  "image": ["ảnh", "hình"],
+  "upload": ["tải lên"],
+  "file": ["tệp", "tập tin"],
+  "timeout": ["hết hạn", "quá thời gian"],
+  "error": ["lỗi"]
+}

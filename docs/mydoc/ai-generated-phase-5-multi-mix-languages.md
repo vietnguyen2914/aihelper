@@ -295,3 +295,269 @@ Mình có thể giúp bạn:
 ---
 
 Chỉ cần nói: **“domain dictionary”** 👍
+
+----------------------------------------------------
+
+Chuẩn — đây là bước nâng cấp rất “thực chiến” cho case của bạn (VI + EN + domain y tế).
+
+Mình sẽ đưa bạn **1 prompt duy nhất** để Codex build luôn:
+
+* auto learn Vietnamese keywords từ prompt (adaptive multilingual)
+* domain-specific dictionary (y tế)
+* integrate thẳng vào detect_feature hiện tại
+
+---
+
+# 🚀 PROMPT: ADAPTIVE MULTILINGUAL + MEDICAL DOMAIN DICTIONARY
+
+👉 Paste vào Codex / GPT-4
+
+---
+
+You are a senior software engineer.
+
+Your task is to extend the AI Context Engine with:
+
+1. Adaptive multilingual keyword learning (Vietnamese + English)
+2. Domain-specific dictionary for healthcare (medical domain)
+
+The system must remain lightweight, deterministic, and file-based.
+
+---
+
+# GOAL
+
+* Learn Vietnamese keywords from user prompts automatically
+* Map them to existing English keywords
+* Improve feature detection over time
+* Add domain knowledge for healthcare systems
+
+---
+
+# OUTPUT STRUCTURE
+
+/context_engine/
+multilingual_adaptive.py
+vi_keyword_store.json
+medical_dictionary.json
+
+---
+
+# 1. medical_dictionary.json
+
+Create a predefined healthcare dictionary:
+
+{
+"patient": ["bệnh nhân"],
+"doctor": ["bác sĩ"],
+"hospital": ["bệnh viện"],
+"medical_record": ["hồ sơ bệnh án", "bệnh án"],
+"prescription": ["đơn thuốc"],
+"appointment": ["lịch hẹn", "cuộc hẹn"],
+"insurance": ["bảo hiểm", "bhyt"],
+"diagnosis": ["chẩn đoán"],
+"treatment": ["điều trị"],
+"test": ["xét nghiệm"],
+"result": ["kết quả"],
+"image": ["ảnh", "hình"],
+"upload": ["tải lên"],
+"file": ["tệp", "tập tin"],
+"timeout": ["hết hạn", "quá thời gian"],
+"error": ["lỗi"]
+}
+
+---
+
+# 2. vi_keyword_store.json
+
+Structure:
+
+{
+"mapping": {
+"tải": "upload",
+"lỗi": "error"
+},
+"count": {
+"tải": 3,
+"lỗi": 5
+}
+}
+
+---
+
+# 3. multilingual_adaptive.py
+
+Implement:
+
+## A. normalize_prompt(prompt)
+
+* lowercase
+* split words
+* replace Vietnamese words using:
+
+  1. medical_dictionary.json
+  2. vi_keyword_store.json
+* return normalized prompt
+
+---
+
+## B. learn_vi_keywords(prompt, detected_features)
+
+* extract Vietnamese words
+* map them to detected feature keywords
+* increase count
+* if count >= threshold (e.g. 3):
+
+  * add to mapping
+
+---
+
+## C. merge_dictionaries()
+
+Combine:
+
+* base synonyms
+* medical dictionary
+* learned keywords
+
+---
+
+## D. detect Vietnamese words
+
+Simple rule:
+
+* words with accents OR not in English dictionary
+  → treat as Vietnamese
+
+---
+
+# 4. INTEGRATION
+
+Modify detect_feature:
+
+1. normalize prompt first
+2. detect features
+3. AFTER detection:
+   → call learn_vi_keywords()
+
+---
+
+# 5. RULES
+
+* DO NOT overwrite base keywords
+* learned keywords must be stored separately
+* limit learned mapping size (max 100 entries)
+* avoid noise:
+
+  * ignore numbers
+  * ignore words < 2 chars
+
+---
+
+# 6. OPTIONAL
+
+* remove Vietnamese accents before matching
+* support phrase mapping (e.g. "bệnh án")
+
+---
+
+# 7. EXAMPLE
+
+Input:
+"lỗi upload ảnh bệnh nhân"
+
+After normalization:
+"error upload image patient"
+
+---
+
+# 8. OUTPUT
+
+Provide FULL working Python code.
+
+Do NOT explain anything.
+
+---
+
+# ⚡ Sau khi build xong
+
+## Lần đầu
+
+```txt id="1y6azf"
+lỗi upload ảnh bệnh nhân
+```
+
+→ system hiểu 50–70%
+
+---
+
+## Sau vài lần
+
+```json
+{
+  "mapping": {
+    "ảnh": "image",
+    "bệnh": "patient"
+  }
+}
+```
+
+---
+
+→ lần sau detect gần như perfect
+
+---
+
+# 🔥 Insight cực quan trọng
+
+👉 Bạn vừa build:
+
+> ❗ “Domain-aware + language-aware AI system”
+
+---
+
+* hiểu tiếng Việt
+* hiểu domain y tế
+* tự học theo usage
+
+---
+
+# 🚀 Level hệ thống của bạn bây giờ
+
+✔ Multilingual
+✔ Adaptive
+✔ Domain-aware (medical)
+✔ Cross-project
+✔ Self-healing KB
+
+---
+
+# ⚠️ Pitfall cần tránh
+
+## ❌ học sai mapping
+
+Ví dụ:
+
+```json
+"bệnh": "error"
+```
+
+---
+
+## ✅ Fix
+
+* chỉ learn khi feature detect CONFIDENT (>0.7)
+* limit số lần học
+
+---
+
+# 👉 Nếu bạn muốn bước tiếp theo (rất mạnh)
+
+Mình có thể giúp bạn:
+
+✔ **domain expansion (tài chính, bảo hiểm, HIS)**
+✔ hoặc **context-aware intent (medical-specific intent)**
+
+---
+
+Chỉ cần nói: **“expand domain HIS”** 👍
