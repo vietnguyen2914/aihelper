@@ -4,13 +4,13 @@ from pathlib import Path
 from typing import Any, Dict, List, Set
 
 try:
-    from .common import collect_text_tokens, discover_services, load_feature_index, project_root
+    from .common import collect_text_tokens, discover_services, load_feature_index, project_root, tokenize
     from .learning import _load_learned
-    from .multilingual import expand_keywords, multilingual_tokens, normalize_prompt
+    from .multilingual_adaptive import learn_vi_keywords, normalize_prompt
 except ImportError:
-    from common import collect_text_tokens, discover_services, load_feature_index, project_root
+    from common import collect_text_tokens, discover_services, load_feature_index, project_root, tokenize
     from learning import _load_learned
-    from multilingual import expand_keywords, multilingual_tokens, normalize_prompt
+    from multilingual_adaptive import learn_vi_keywords, normalize_prompt
 
 
 def _learned_feature_keywords(root: Path | None = None) -> Dict[str, Dict[str, int]]:
@@ -36,44 +36,34 @@ def feature_keywords(feature: Dict[str, Any], root: Path | None = None) -> Set[s
             feature.get("extensions", []),
             feature.get("related_ext_files", []),
             feature.get("keywords", []),
+            feature.get("keywords_vi", []),
         ]
     )
     if name:
-        keywords.update(multilingual_tokens(name.replace("_", " ")))
-
-    for keyword_group in (feature.get("keywords", []), feature.get("keywords_vi", [])):
-        if isinstance(keyword_group, list):
-            for keyword in keyword_group:
-                if isinstance(keyword, str):
-                    keywords.update(multilingual_tokens(keyword))
+        keywords.update(tokenize(name.replace("_", " ")))
 
     learned = _learned_feature_keywords(root).get(name, {})
     if isinstance(learned, dict):
         for token, weight in learned.items():
             if isinstance(token, str) and isinstance(weight, int) and weight > 0:
-                keywords.update(multilingual_tokens(token))
-
-    expanded_keywords = set(expand_keywords(sorted(keywords)))
-    expanded_tokens: Set[str] = set(keywords)
-    for keyword in expanded_keywords:
-        expanded_tokens.update(multilingual_tokens(keyword))
-    return {token for token in expanded_tokens if _is_useful_keyword(token)}
+                keywords.add(token)
+    return {token for token in keywords if _is_useful_keyword(token)}
 
 
 def score_feature(user_prompt: str, feature: Dict[str, Any], root: Path | None = None) -> Dict[str, Any]:
     normalized_prompt = normalize_prompt(user_prompt)
-    prompt_tokens = multilingual_tokens(user_prompt)
+    prompt_tokens = set(tokenize(normalized_prompt))
     keywords = feature_keywords(feature, root=root)
     matched_keywords = sorted(prompt_tokens & keywords)
     score = len(matched_keywords) * 4
 
     for entry in feature.get("entry_points", []):
         if isinstance(entry, str):
-            score += len(prompt_tokens & multilingual_tokens(entry)) * 2
+            score += len(prompt_tokens & set(tokenize(normalize_prompt(entry)))) * 2
 
     for entity in feature.get("core_entities", []):
         if isinstance(entity, str):
-            score += len(prompt_tokens & multilingual_tokens(entity)) * 2
+            score += len(prompt_tokens & set(tokenize(normalize_prompt(entity)))) * 2
 
     name = feature.get("name", "")
     if isinstance(name, str):
@@ -111,6 +101,7 @@ def detect_feature_matches(user_prompt: str, root: Path | None = None, top_n: in
     best_score = ranked[0]["score"]
     threshold = max(2, best_score - 3)
     filtered = [item for item in ranked if item["score"] >= threshold]
+    learn_vi_keywords(user_prompt, filtered, root=root)
     return filtered[:top_n]
 
 
