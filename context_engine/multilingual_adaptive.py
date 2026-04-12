@@ -1,60 +1,75 @@
 from __future__ import annotations
 
+import json
 import re
 import unicodedata
+from functools import lru_cache
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Sequence, Set, Tuple
+from typing import Any, Dict, List, Set
 
 try:
-    from .common import collect_text_tokens, helper_root, safe_load_json, safe_write_json, tokenize
+    from .common import helper_root, safe_load_json, safe_write_json, tokenize
+    from .ollama_fallback import call_ollama
 except ImportError:
-    from common import collect_text_tokens, helper_root, safe_load_json, safe_write_json, tokenize
+    from common import helper_root, safe_load_json, safe_write_json, tokenize
+    from ollama_fallback import call_ollama
 
 
 _WORD_RE = re.compile(r"[0-9A-Za-zÀ-ỹ_]+", re.UNICODE)
 _MAX_LEARNED_ENTRIES = 100
 _LEARN_THRESHOLD = 3
-_VI_STOPWORDS = {
-    "a",
-    "an",
-    "and",
-    "api",
-    "app",
-    "application",
-    "be",
-    "build",
-    "by",
-    "do",
-    "for",
-    "from",
-    "get",
-    "in",
-    "into",
-    "is",
-    "it",
-    "main",
-    "module",
-    "of",
-    "on",
-    "or",
-    "service",
-    "system",
-    "that",
-    "the",
-    "this",
-    "to",
-    "ui",
-    "use",
-    "with",
+_TOKEN_PRIORITY = [
+    "error",
+    "timeout",
+    "upload",
+    "file",
+    "image",
+    "patient",
+    "doctor",
+    "hospital",
+    "medical_record",
+    "prescription",
+    "appointment",
+    "insurance",
+    "diagnosis",
+    "treatment",
+    "test",
+    "result",
+    "storage",
+    "s3",
+]
+_FALLBACK_TRANSLATIONS = {
+    "bac si": "doctor",
+    "benh an": "medical_record",
+    "benh nhan": "patient",
+    "benh vien": "hospital",
+    "bhyt": "insurance",
+    "bao hiem": "insurance",
+    "chuan doan": "diagnosis",
+    "cuoc hen": "appointment",
+    "don thuoc": "prescription",
+    "hét han": "timeout",
+    "het han": "timeout",
+    "hinh": "image",
+    "hinh anh": "image",
+    "ho so benh an": "medical_record",
+    "loi": "error",
+    "qua thoi gian": "timeout",
+    "tai": "upload",
+    "tai len": "upload",
+    "tep": "file",
+    "tap tin": "file",
+    "thong qua": "through",
+    "xet nghiem": "test",
+    "ket qua": "result",
+    "dieu tri": "treatment",
+    "luu tru": "storage",
+    "anh": "image",
+    "aws": "s3",
+    "bucket": "s3",
+    "file": "file",
+    "s3": "s3",
 }
-
-
-def _base_synonyms_path() -> Path:
-    return helper_root() / "context_engine" / "synonyms.json"
-
-
-def _medical_dictionary_path() -> Path:
-    return helper_root() / "context_engine" / "medical_dictionary.json"
 
 
 def _vi_keyword_store_path(root: Path | None = None) -> Path:
@@ -70,59 +85,6 @@ def _normalize_phrase(text: str) -> str:
     lowered = remove_accents((text or "").lower())
     lowered = re.sub(r"[^0-9a-z_]+", " ", lowered)
     return re.sub(r"\s+", " ", lowered).strip()
-
-
-def _load_dict(path: Path, default: Any) -> Any:
-    data = safe_load_json(path, default=default)
-    return data if isinstance(data, type(default)) else default
-
-
-def _load_base_synonyms() -> Dict[str, List[str]]:
-    data = safe_load_json(_base_synonyms_path(), default={})
-    if not isinstance(data, dict):
-        return {}
-    result: Dict[str, List[str]] = {}
-    for canonical, values in data.items():
-        if not isinstance(canonical, str):
-            continue
-        phrases: List[str] = [canonical]
-        if isinstance(values, list):
-            phrases.extend(value for value in values if isinstance(value, str))
-        cleaned: List[str] = []
-        seen = set()
-        for phrase in phrases:
-            normalized = _normalize_phrase(phrase)
-            if not normalized or normalized in seen:
-                continue
-            seen.add(normalized)
-            cleaned.append(normalized)
-        if cleaned:
-            result[_normalize_phrase(canonical)] = cleaned
-    return result
-
-
-def _load_medical_dictionary() -> Dict[str, List[str]]:
-    data = safe_load_json(_medical_dictionary_path(), default={})
-    if not isinstance(data, dict):
-        return {}
-    result: Dict[str, List[str]] = {}
-    for canonical, values in data.items():
-        if not isinstance(canonical, str):
-            continue
-        phrases: List[str] = [canonical]
-        if isinstance(values, list):
-            phrases.extend(value for value in values if isinstance(value, str))
-        cleaned: List[str] = []
-        seen = set()
-        for phrase in phrases:
-            normalized = _normalize_phrase(phrase)
-            if not normalized or normalized in seen:
-                continue
-            seen.add(normalized)
-            cleaned.append(normalized)
-        if cleaned:
-            result[_normalize_phrase(canonical)] = cleaned
-    return result
 
 
 def _load_vi_store(root: Path | None = None) -> Dict[str, Dict[str, int | str]]:
@@ -141,119 +103,125 @@ def _save_vi_store(store: Dict[str, Dict[str, int | str]], root: Path | None = N
     safe_write_json(_vi_keyword_store_path(root), store)
 
 
-def merge_dictionaries(root: Path | None = None) -> Dict[str, List[str]]:
-    combined: Dict[str, List[str]] = {}
-
-    for dictionary in (_load_base_synonyms(), _load_medical_dictionary()):
-        for canonical, values in dictionary.items():
-            bucket = combined.setdefault(_normalize_phrase(canonical), [])
-            seen = set(bucket)
-            for value in values:
-                normalized = _normalize_phrase(value)
-                if normalized and normalized not in seen:
-                    seen.add(normalized)
-                    bucket.append(normalized)
-
-    vi_store = _load_vi_store(root)
-    mapping = vi_store.get("mapping", {})
-    if isinstance(mapping, dict):
-        for vietnamese, canonical in mapping.items():
-            if not isinstance(vietnamese, str) or not isinstance(canonical, str):
-                continue
-            bucket = combined.setdefault(_normalize_phrase(canonical), [])
-            normalized_vietnamese = _normalize_phrase(vietnamese)
-            if normalized_vietnamese and normalized_vietnamese not in bucket:
-                bucket.append(normalized_vietnamese)
-
-    return combined
-
-
-def _lookup_table(root: Path | None = None) -> Tuple[Dict[str, str], int]:
-    lookup: Dict[str, str] = {}
-    max_words = 1
-    for canonical, aliases in merge_dictionaries(root=root).items():
-        for alias in aliases + [canonical]:
-            normalized = _normalize_phrase(alias)
-            if not normalized:
-                continue
-            lookup.setdefault(normalized, canonical)
-            max_words = max(max_words, len(normalized.split()))
-    return lookup, max_words
-
-
-def _english_terms(root: Path | None = None) -> Set[str]:
-    terms: Set[str] = set()
-    for canonical, aliases in merge_dictionaries(root=root).items():
-        terms.add(_normalize_phrase(canonical))
-        terms.update(_normalize_phrase(alias) for alias in aliases)
-
-    try:
-        from .common import discover_services, load_feature_index
-    except ImportError:
-        from common import discover_services, load_feature_index
-
-    for service in discover_services(root):
-        for feature in load_feature_index(service):
-            terms.update(tokenize(" ".join(str(item) for item in feature.get("entry_points", []) if isinstance(item, str))))
-            terms.update(tokenize(" ".join(str(item) for item in feature.get("core_entities", []) if isinstance(item, str))))
-            terms.update(tokenize(" ".join(str(item) for item in feature.get("keywords", []) if isinstance(item, str))))
-            name = feature.get("name")
-            if isinstance(name, str):
-                terms.update(tokenize(name.replace("_", " ")))
-    return {term for term in terms if term}
-
-
-def is_vietnamese_word(word: str, root: Path | None = None) -> bool:
-    token = _normalize_phrase(word)
-    if not token or token.isdigit() or len(token) < 2:
-        return False
-    if any(char for char in word if char in "ăâđêôơưáàảãạấầẩẫậắằẳẵặéèẻẽẹếềểễệíìỉĩịóòỏõọốồổỗộớờởỡợúùủũụýỳỷỹỵ"):
-        return True
-    return token not in _english_terms(root=root)
-
-
-def detect_vietnamese_words(prompt: str, root: Path | None = None) -> List[str]:
-    tokens = [token for token in _WORD_RE.findall((prompt or "").lower()) if token]
-    return [token for token in tokens if is_vietnamese_word(token, root=root)]
-
-
-def normalize_prompt(prompt: str, root: Path | None = None) -> str:
-    lookup, max_words = _lookup_table(root=root)
+def _rule_normalize_prompt(prompt: str, root: Path | None = None) -> str:
+    store = _load_vi_store(root)
+    mapping = store.get("mapping", {}) if isinstance(store, dict) else {}
     tokens = [token for token in _WORD_RE.findall((prompt or "").lower()) if token and len(token) >= 2]
     normalized_tokens: List[str] = []
+    seen: Set[str] = set()
     index = 0
-
     while index < len(tokens):
-        matched = False
-        remaining = len(tokens) - index
-        for size in range(min(max_words, remaining), 0, -1):
-            phrase = " ".join(tokens[index : index + size])
-            canonical = lookup.get(_normalize_phrase(phrase))
-            if canonical:
-                normalized_tokens.append(canonical)
-                index += size
-                matched = True
-                break
-        if matched:
-            continue
-
         token = tokens[index]
         if token.isdigit() or len(token) < 2:
             index += 1
             continue
-        if is_vietnamese_word(token, root=root):
-            normalized_tokens.append(_normalize_phrase(token))
-        else:
-            normalized_tokens.append(_normalize_phrase(token))
+        matched = False
+        for size in (3, 2, 1):
+            if index + size > len(tokens):
+                continue
+            phrase = " ".join(tokens[index : index + size])
+            lookup_key = _normalize_phrase(phrase)
+            translated = mapping.get(lookup_key) or _FALLBACK_TRANSLATIONS.get(lookup_key)
+            if not translated:
+                continue
+            normalized = _normalize_phrase(str(translated))
+            if normalized and normalized not in seen:
+                seen.add(normalized)
+                normalized_tokens.append(normalized)
+            matched = True
+            index += size
+            break
+        if matched:
+            continue
+
+        normalized = _normalize_phrase(token)
+        if normalized and normalized not in seen:
+            seen.add(normalized)
+            normalized_tokens.append(normalized)
         index += 1
 
     return " ".join(token for token in normalized_tokens if token)
 
 
-def _ordered_feature_keywords(feature: Dict[str, Any], root: Path | None = None) -> List[str]:
+def _parse_normalized_response(response: str) -> str:
+    raw = (response or "").strip()
+    if not raw:
+        return ""
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError:
+        return _normalize_phrase(raw)
+    if isinstance(parsed, dict):
+        value = parsed.get("normalized_prompt") or parsed.get("response") or parsed.get("text")
+        if isinstance(value, str):
+            return _normalize_phrase(value)
+        if isinstance(value, list):
+            pieces = [item for item in value if isinstance(item, str)]
+            if pieces:
+                return _normalize_phrase(" ".join(pieces))
+    if isinstance(parsed, str):
+        return _normalize_phrase(parsed)
+    return _normalize_phrase(raw)
+
+
+def _merge_normalized_outputs(primary: str, fallback: str) -> str:
+    tokens: List[str] = []
+    seen = set()
+    for source in (primary, fallback):
+        for token in tokenize(source):
+            normalized = _normalize_phrase(token)
+            if normalized and normalized not in seen:
+                seen.add(normalized)
+                tokens.append(normalized)
+
+    if not tokens:
+        return ""
+
+    priority_map = {token: index for index, token in enumerate(_TOKEN_PRIORITY)}
+    tokens.sort(key=lambda token: (priority_map.get(token, len(priority_map) + 1), token))
+    return " ".join(tokens)
+
+
+@lru_cache(maxsize=512)
+def _normalize_prompt_cached(prompt: str) -> str:
+    if not prompt or not prompt.strip():
+        return ""
+
+    llm_prompt = (
+        "Normalize this user prompt into short English keywords.\n"
+        "Rules:\n"
+        "- output JSON only\n"
+        '- use the key "normalized_prompt"\n'
+        "- lowercase English keywords only\n"
+        "- map Vietnamese words/phrases to English equivalents\n"
+        "- keep technical tokens like s3, api, json, url\n"
+        "- ignore numbers and very short words\n"
+        "- return at most 8 keywords separated by spaces\n\n"
+        f"Input: {prompt}"
+    )
+    response, ok = call_ollama(llm_prompt, model_type="tiny")
+    fallback = _rule_normalize_prompt(prompt)
+    if ok and isinstance(response, str):
+        normalized = _parse_normalized_response(response)
+        if normalized:
+            merged = _merge_normalized_outputs(normalized, fallback)
+            if merged:
+                return merged
+
+    # Fallback stays deterministic when Ollama is unavailable.
+    merged = _merge_normalized_outputs("", fallback)
+    return merged or fallback
+
+
+def normalize_prompt(prompt: str, root: Path | None = None) -> str:
+    _ = root
+    return _normalize_prompt_cached(prompt or "")
+
+
+def _ordered_feature_keywords(feature: Dict[str, Any]) -> List[str]:
     order: List[str] = []
     seen = set()
-    fields: Sequence[Any] = (
+    fields = (
         feature.get("keywords", []),
         feature.get("keywords_vi", []),
         feature.get("entry_points", []),
@@ -288,18 +256,18 @@ def _ordered_feature_keywords(feature: Dict[str, Any], root: Path | None = None)
     return order
 
 
-def _extract_vietnamese_candidates(prompt: str, root: Path | None = None) -> List[str]:
-    tokens = detect_vietnamese_words(prompt, root=root)
-    lookup, _ = _lookup_table(root=root)
+def _extract_learnable_tokens(prompt: str, normalized_prompt: str) -> List[str]:
+    prompt_tokens = [token for token in _WORD_RE.findall((prompt or "").lower()) if token]
+    normalized_tokens = {token for token in tokenize(normalized_prompt)}
     candidates: List[str] = []
     seen = set()
-    for token in tokens:
+    for token in prompt_tokens:
         if len(token) < 2 or token.isdigit():
             continue
-        if not is_vietnamese_word(token, root=root):
-            continue
         normalized = _normalize_phrase(token)
-        if normalized and normalized not in seen and normalized not in lookup:
+        if not normalized or normalized in normalized_tokens:
+            continue
+        if normalized not in seen:
             seen.add(normalized)
             candidates.append(normalized)
     return candidates
@@ -330,7 +298,7 @@ def learn_vi_keywords(
         feature_data = feature.get("feature_data", feature)
         if not isinstance(feature_data, dict):
             continue
-        for keyword in _ordered_feature_keywords(feature_data, root=root):
+        for keyword in _ordered_feature_keywords(feature_data):
             if keyword and keyword not in primary_targets:
                 primary_targets.append(keyword)
 
@@ -338,7 +306,7 @@ def learn_vi_keywords(
     if not target_pool:
         target_pool = primary_targets[:]
 
-    candidates = _extract_vietnamese_candidates(prompt, root=root)
+    candidates = _extract_learnable_tokens(prompt, normalized_prompt)
     assigned_targets: Set[str] = set()
 
     for candidate in candidates:

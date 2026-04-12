@@ -23,6 +23,11 @@ except ImportError:
 
 DEFAULT_OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://localhost:11434")
 DEFAULT_MODEL = os.environ.get("OLLAMA_MODEL", "qwen2.5:latest")
+OLLAMA_MODELS = {
+    "tiny": os.environ.get("OLLAMA_LANGUAGE_MODEL", "qwen2.5:1.5b"),
+    "medium": os.environ.get("OLLAMA_DISCOVERY_MODEL", "qwen2.5:3b"),
+    "large": os.environ.get("OLLAMA_LARGE_MODEL", "qwen2.5:7b"),
+}
 
 
 def build_discovery_prompt(user_prompt: str, root: Path | None = None) -> str:
@@ -140,8 +145,42 @@ def _resolve_model(model: str = DEFAULT_MODEL, base_url: str = DEFAULT_OLLAMA_UR
     return names[0]
 
 
+def _resolve_model_type(model_type: str, base_url: str = DEFAULT_OLLAMA_URL) -> str | None:
+    model = OLLAMA_MODELS.get(model_type, model_type)
+    return _resolve_model(model=model, base_url=base_url)
+
+
 def model_available(model: str = DEFAULT_MODEL, base_url: str = DEFAULT_OLLAMA_URL) -> bool:
     return _resolve_model(model=model, base_url=base_url) is not None
+
+
+def call_ollama(
+    prompt: str,
+    model_type: str = "tiny",
+    base_url: str = DEFAULT_OLLAMA_URL,
+) -> Tuple[Optional[str], bool]:
+    resolved_model = _resolve_model_type(model_type, base_url=base_url)
+    if not resolved_model:
+        return None, False
+
+    try:
+        data = _request_json(
+            "POST",
+            f"{base_url}/api/generate",
+            payload={
+                "model": resolved_model,
+                "prompt": prompt,
+                "stream": False,
+                "format": "json",
+            },
+        )
+    except (URLError, HTTPError, TimeoutError, json.JSONDecodeError, OSError):
+        return None, False
+
+    response = data.get("response")
+    if isinstance(response, str) and response.strip():
+        return response, True
+    return None, False
 
 
 def generate_with_ollama(prompt: str, model: str = DEFAULT_MODEL, base_url: str = DEFAULT_OLLAMA_URL) -> Tuple[Optional[str], bool]:

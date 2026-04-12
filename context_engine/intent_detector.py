@@ -1,12 +1,17 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any, Dict, List
 
 try:
     from .common import default_intent_config_path, project_root, safe_load_json, tokenize
+    from .multilingual_adaptive import normalize_prompt
+    from .ollama_fallback import call_ollama
 except ImportError:
     from common import default_intent_config_path, project_root, safe_load_json, tokenize
+    from multilingual_adaptive import normalize_prompt
+    from ollama_fallback import call_ollama
 
 
 def _intent_config(root: Path | None = None) -> List[Dict[str, Any]]:
@@ -26,10 +31,54 @@ def _learned_intent_keywords(root: Path | None = None) -> Dict[str, Dict[str, in
     return intents if isinstance(intents, dict) else {}
 
 
+def _classify_intent_with_ollama(user_prompt: str, intents: List[Dict[str, Any]], root: Path | None = None) -> str | None:
+    names = [str(intent["name"]) for intent in intents if isinstance(intent.get("name"), str)]
+    if not names:
+        return None
+
+    normalized_prompt = normalize_prompt(user_prompt, root=root)
+    llm_prompt = (
+        "Classify the user request into exactly one allowed intent.\n"
+        "Allowed intents: " + ", ".join(names) + "\n"
+        "Rules:\n"
+        "- output JSON only\n"
+        '- use the key "intent"\n'
+        "- return one of the allowed intents only\n"
+        "- prefer the closest intent for the normalized prompt\n\n"
+        f"Normalized prompt: {normalized_prompt}\n"
+        f"Original prompt: {user_prompt}"
+    )
+    response, ok = call_ollama(llm_prompt, model_type="tiny")
+    if not ok or not isinstance(response, str):
+        return None
+
+    raw = response.strip()
+    if not raw:
+        return None
+
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError:
+        candidate = raw.strip().strip('"').lower()
+        return candidate if candidate in names else None
+
+    candidate = None
+    if isinstance(parsed, dict):
+        value = parsed.get("intent") or parsed.get("name") or parsed.get("label")
+        if isinstance(value, str):
+            candidate = value.strip().lower()
+    elif isinstance(parsed, str):
+        candidate = parsed.strip().lower()
+
+    return candidate if candidate in names else None
+
+
 def detect_intent(user_prompt: str, root: Path | None = None) -> Dict[str, Any]:
-    prompt_tokens = set(tokenize(user_prompt))
     intents = _intent_config(root)
+    normalized_prompt = normalize_prompt(user_prompt, root=root)
+    prompt_tokens = set(tokenize(normalized_prompt))
     learned_keywords = _learned_intent_keywords(root)
+    model_hint = _classify_intent_with_ollama(user_prompt, intents, root=root)
 
     ranked: List[Dict[str, Any]] = []
     for intent in intents:
@@ -51,6 +100,9 @@ def detect_intent(user_prompt: str, root: Path | None = None) -> Dict[str, Any]:
                 if isinstance(weight, int) and weight > 0:
                     evidence_score += min(weight, 5)
 
+        if model_hint == name:
+            evidence_score += 6
+
         score = evidence_score + (int(intent.get("priority", 0)) if evidence_score > 0 else 0)
         ranked.append(
             {
@@ -63,6 +115,19 @@ def detect_intent(user_prompt: str, root: Path | None = None) -> Dict[str, Any]:
         )
 
     ranked.sort(key=lambda item: (-item["score"], item["name"]))
+    if model_hint:
+        for item in ranked:
+            if item["name"] == model_hint:
+                if item["score"] <= 0:
+                    item = dict(item)
+                    item["score"] = 1
+                    item["confidence"] = 1.0
+                    return item
+                best = dict(item)
+                total = sum(max(entry["score"], 0) for entry in ranked if entry["score"] > 0) or 1
+                best["confidence"] = round(best["score"] / total, 4)
+                return best
+
     if not ranked or ranked[0]["score"] <= 0:
         return {
             "name": "implement",
@@ -77,4 +142,3 @@ def detect_intent(user_prompt: str, root: Path | None = None) -> Dict[str, Any]:
     total = sum(max(item["score"], 0) for item in ranked if item["score"] > 0) or 1
     best["confidence"] = round(best["score"] / total, 4)
     return best
-

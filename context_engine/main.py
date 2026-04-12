@@ -12,7 +12,7 @@ try:
     from .detect_feature import detect_feature_matches, detect_features
     from .discovery import discover_feature_from_codebase
     from .intent_detector import detect_intent
-    from .ollama_fallback import build_discovery_prompt, build_manual_fallback_prompt, generate_with_ollama
+    from .ollama_fallback import build_discovery_prompt, build_manual_fallback_prompt, call_ollama, generate_with_ollama
     from .kb_updater import update_ai_kb
     from .learning import feedback_summary, record_feedback
     from .load_context import load_context_bundle
@@ -22,7 +22,7 @@ except ImportError:
     from detect_feature import detect_feature_matches, detect_features
     from discovery import discover_feature_from_codebase
     from intent_detector import detect_intent
-    from ollama_fallback import build_discovery_prompt, build_manual_fallback_prompt, generate_with_ollama
+    from ollama_fallback import build_discovery_prompt, build_manual_fallback_prompt, call_ollama, generate_with_ollama
     from kb_updater import update_ai_kb
     from learning import feedback_summary, record_feedback
     from load_context import load_context_bundle
@@ -179,7 +179,7 @@ def analyze_request(
     if not detected_feature_names:
         discovery_result = discover_feature_from_codebase(user_prompt, root=root)
         discovery_prompt = build_discovery_prompt(user_prompt, root=root)
-        ollama_output, ollama_ready = generate_with_ollama(discovery_prompt)
+        ollama_output, ollama_ready = call_ollama(discovery_prompt, model_type="medium")
 
         if ollama_ready and isinstance(ollama_output, str):
             try:
