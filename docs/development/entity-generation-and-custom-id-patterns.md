@@ -27,4 +27,5 @@
 - Keep the helper portable across projects.
 - Avoid assumptions about one backend or frontend framework.
 - Prefer project-root metadata over hardcoded repository-specific rules.
+- When documenting a new project, map business features first, then fill in code, data, and integration details.
 

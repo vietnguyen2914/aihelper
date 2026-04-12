@@ -1,30 +1,23 @@
 # Architecture Overview
 
-## Primary goal
+## What Belongs Here
 
-Build one portable helper that keeps the strongest behavior from the three source projects:
+This folder explains the project from a business-function point of view, then maps those functions to code, data, and runtime responsibilities.
 
-- `mindforme`: richer prompt rewriting, flow-aware planning, cross-project thinking
-- `signserver`: documentation discipline, deterministic operating model, adaptive keyword ideas
-- `lms`: root-aware service discovery, structured JSON output, cleaner orchestration
+## Standard Doc Set
 
-## Core flow
+- [Function Mindmap](./function-mindmap.md)
+- [Function / Use Case vs System Matrix](./use-case-system-matrix.md)
+- [Entity / Route Matrix](./entity-crud-matrix.md)
 
-1. Resolve the target project root from the current shell directory or `--project-root`.
-2. Discover every service inside that root that contains `ai/index/features.json`.
-3. Detect intent and rank the most relevant features using feature metadata plus learned keywords.
-4. Load related feature payloads, flows, integrations, and likely override paths.
-5. Produce:
-   - `selected_context`
-   - `rewritten_prompt`
-   - `final_prompt`
-   - `execution_steps`
-6. Fall back to lightweight codebase discovery when indexed features do not match.
+## How To Read It
 
-## Why this design is better than any single source helper
+1. Start with the function mindmap to see the business surface.
+2. Open the matching use-case doc for the flow details.
+3. Use the matrix docs to locate code, tables, services, jobs, and integrations.
+4. Use the AI indexes when you want machine-readable versions of the same structure.
 
-- It is portable like `lms`, but not tied to one repo layout.
-- It keeps richer planning than `signserver`.
-- It handles more index shapes than `mindforme`.
-- It gives both machine-friendly JSON and prompt-ready output without maintaining multiple entrypoints.
+## Project Shape
+
+The docs should describe the project by business function, not by technical folder hierarchy. If the codebase is PHP, JHipster, Laravel, CakePHP, or something older and mixed, the doc structure stays the same.
 
