@@ -32,3 +32,7 @@ Use this when you want explicit flags like:
 - `--format prompt`
 - `--max-context-chars 8000`
 - `--auto-update-kb`
+
+## Ollama fallback
+
+If Ollama is not available locally, the helper prints a ready-to-paste discovery prompt instead of failing. You can paste that prompt into GPT or Claude and use their output to continue the discovery step manually.

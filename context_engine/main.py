@@ -11,6 +11,7 @@ try:
     from .detect_feature import detect_feature_matches, detect_features
     from .discovery import discover_feature_from_codebase
     from .intent_detector import detect_intent
+    from .ollama_fallback import build_discovery_prompt, generate_with_ollama
     from .kb_updater import update_ai_kb
     from .learning import feedback_summary, record_feedback
     from .load_context import load_context_bundle
@@ -19,6 +20,7 @@ except ImportError:
     from detect_feature import detect_feature_matches, detect_features
     from discovery import discover_feature_from_codebase
     from intent_detector import detect_intent
+    from ollama_fallback import build_discovery_prompt, generate_with_ollama
     from kb_updater import update_ai_kb
     from learning import feedback_summary, record_feedback
     from load_context import load_context_bundle
@@ -35,11 +37,52 @@ def analyze_request(
     detected_feature_names = detect_features(user_prompt, root=root)
     discovery_result = None
     kb_update = {"updated": False, "reason": "not_needed"}
+    discovery_prompt = None
+    prompt_fallback = None
 
     if not detected_feature_names:
         discovery_result = discover_feature_from_codebase(user_prompt, root=root)
-        if auto_update_kb:
-            kb_update = update_ai_kb(discovery_result, root=root)
+        discovery_prompt = build_discovery_prompt(user_prompt, root=root)
+        ollama_output, ollama_ready = generate_with_ollama(discovery_prompt)
+
+        if ollama_ready and isinstance(ollama_output, str):
+            try:
+                parsed = json.loads(ollama_output)
+            except json.JSONDecodeError:
+                parsed = None
+            if isinstance(parsed, dict):
+                discovery_result = parsed
+                if auto_update_kb:
+                    kb_update = update_ai_kb(discovery_result, root=root)
+                result = {
+                    "input": user_prompt,
+                    "detected_intent": intent,
+                    "detected_features": [],
+                    "selected_context": {
+                        "target_root": str(root.resolve()) if root else "",
+                        "services": [],
+                        "ext_overrides": [],
+                        "context_limit_chars": max_context_chars,
+                        "truncated": False,
+                    },
+                    "final_prompt": build_prompt(user_prompt, {"target_root": str(root.resolve()) if root else "", "services": []}),
+                    "rewritten_prompt": user_prompt,
+                    "execution_steps": [
+                        {
+                            "step": "discover_feature",
+                            "output": discovery_result,
+                        }
+                    ],
+                    "discovery_result": discovery_result,
+                    "kb_update": kb_update,
+                    "feedback_summary": feedback_summary(root=root),
+                    "runtime_ms": round((perf_counter() - start) * 1000.0, 3),
+                    "mode": "ollama_discovery",
+                    "discovery_prompt": discovery_prompt,
+                }
+                return result
+
+        prompt_fallback = discovery_prompt
         result = {
             "input": user_prompt,
             "detected_intent": intent,
@@ -54,12 +97,14 @@ def analyze_request(
             "final_prompt": build_prompt(user_prompt, {"target_root": str(root.resolve()) if root else "", "services": []}),
             "rewritten_prompt": user_prompt,
             "execution_steps": [
-                {"step": "discover", "details": "No indexed feature matched. Inspect the discovered codebase snapshot."}
+                {"step": "discover", "details": "No indexed feature matched. Use the discovery prompt with GPT or Claude."}
             ],
             "discovery_result": discovery_result,
             "kb_update": kb_update,
             "feedback_summary": feedback_summary(root=root),
             "runtime_ms": round((perf_counter() - start) * 1000.0, 3),
+            "mode": "prompt_only",
+            "prompt_fallback": prompt_fallback,
         }
         return result
 
@@ -144,6 +189,10 @@ def main() -> int:
             root=target_root,
             auto_update_kb=bool(getattr(args, "auto_update_kb", False) or args.legacy_auto_update_kb),
         )
+        if result.get("mode") == "prompt_only" and result.get("prompt_fallback"):
+            print("Ollama is unavailable. Paste the following prompt into GPT or Claude:\n")
+            print(result["prompt_fallback"])
+            return 0
         if output_format == "prompt":
             print(result["final_prompt"])
         else:
@@ -171,4 +220,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
