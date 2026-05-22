@@ -1,46 +1,89 @@
-# Model Stack
+# Model Strategy
 
-## Principle
+aihelper uses a **tiered model architecture** — not one giant LLM. Each tier is optimized for a specific latency/capability trade-off.
 
-> **Context-centric, NOT model-centric.** Retrieval quality + semantic routing + editor awareness > more params.
+## Tier Architecture
 
-## Local Models (Ollama)
+```
+Hot (0.3-5ms IPC)                    Medium (50-200ms)              Cloud
+┌─────────────────────┐          ┌──────────────────────┐     ┌─────────────────┐
+│ deepseek-coder:1.3b │   ──→   │ deepseek-coder-v2:16b│     │ DeepSeek V4     │
+│ phi4-mini           │   fall-  │ qwen3.5:9b           │  →  │ GPT 5.5         │
+│ qwen3.5:4b-16k      │   back   │                      │     │ Gemini 2.5      │
+└─────────────────────┘          └──────────────────────┘     └─────────────────┘
+     ↓ intent router                    ↓ complex tasks            ↓ architecture
+```
 
-| Tier | Model | RAM | Context | Wall Time | Role |
-|------|-------|-----|---------|-----------|------|
-| 🔥 Hot | `deepseek-coder:1.3b` | 2.9GB | 16K | 1.69s | Autocomplete, inline, speculative |
-| 🔥 Hot | `phi4-mini:latest` | 5.7GB | 32K | 1.45s | Assistant, automation, shell |
-| 🔥 Hot | `qwen3.5:4b-16k` | 6.1GB | 16K | 2.77s | Semantic edits, patch, refactor |
-| 🟡 Medium | `deepseek-coder-v2:16b` | ~10GB | 128K | — | Coding fallback (MoE, 2B active) |
-| 🟡 Medium | `qwen3.5:9b` | ~13GB | 32K | — | Vietnamese docs, general |
+### Hot Tier (always loaded)
 
-## Cloud Models
+| Model | Size | RAM | Latency | Role |
+|-------|------|-----|---------|------|
+| `deepseek-coder:1.3b` | 776MB | 2.9GB | ~5ms | Autocomplete, inline suggestions |
+| `phi4-mini:latest` | 2.5GB | 5.7GB | ~20ms | Assistant chat, code review |
+| `qwen3.5:4b-16k` | 3.4GB | 6.1GB | ~30ms | Semantic edits, patch generation |
 
-| Model | Provider | Use |
-|-------|----------|-----|
-| DeepSeek V4 Pro | Zed | Complex reasoning, multi-file patches |
-| GPT-5.5 | Codex | Architecture, debugging, security |
-| Gemini 3.5 Pro | Antigravity | Large-context analysis |
+All 3 hot models fit in **16GB RAM** simultaneously.
 
-## Context Strategy
+### Medium Tier (loaded on demand)
 
-| Workflow | Context | Model |
-|----------|---------|-------|
-| autocomplete | 4K | deepseek-coder:1.3b |
-| patch drafting | 8K | qwen3.5:4b-16k |
-| semantic edits | 16K | qwen3.5:4b-16k |
-| refactor | 24-32K | deepseek-coder-v2:16b |
-| giant operations | 64K+ | cloud |
+| Model | Size | RAM | Role |
+|-------|------|-----|------|
+| `deepseek-coder-v2:16b` | ~10GB | ~16GB | Coding fallback (MoE architecture) |
+| `qwen3.5:9b` | ~6GB | ~13GB | Vietnamese-aware, general reasoning |
 
-## Benchmarks (M1 Pro 32GB)
+Loaded via intent trigger — not preloaded.
 
-| Model | Wall Time | Memory | Thinking |
-|-------|-----------|--------|----------|
-| deepseek-coder:1.3b | 1.69s | 2.9GB | No |
-| phi4-mini | 1.45s | 5.7GB | Yes |
-| qwen3.5:4b-16k | 2.77s | 6.1GB | Yes |
-| gemma4:e4b (removed) | 2.63s | 10GB | Yes — too heavy |
-| MLX Qwen3-8B | 11 tok/s | 16.4GB | — too heavy |
+### Cloud Tier (external API)
 
-> **Winner**: qwen3.5:4b-16k remains optimal for hot tier (best memory/quality ratio).
-> deepseek-coder:1.3b is 2x faster for autocomplete/inline tasks.
+DeepSeek V4 Pro, GPT 5.5, Gemini 2.5 Pro — for architecture-level reasoning where latency isn't critical.
+
+## Intent → Model Mapping
+
+The [Intent Router](../architecture/intent-router.md) selects the model based on coding intent, not file path:
+
+| Intent | Hot Model | Fallback |
+|--------|-----------|----------|
+| `bugfix` | `qwen3.5:4b-16k` | `deepseek-coder-v2:16b` |
+| `refactor` | `qwen3.5:4b-16k` | Cloud |
+| `autocomplete` | `deepseek-coder:1.3b` | N/A |
+| `chat` | `phi4-mini` | Cloud |
+| `explain` | `phi4-mini` | `qwen3.5:9b` |
+| `schema` | `qwen3.5:4b-16k` | Cloud |
+| `optimize` | `qwen3.5:4b-16k` | `deepseek-coder-v2:16b` |
+
+## Embeddings
+
+| Model | Size | Use | Latency |
+|-------|------|-----|---------|
+| `nomic-embed-text:latest` | 274MB | Fast lookup, hot path | ~2ms |
+| `bge-m3:latest` | 2.2GB | High-quality retrieval | ~50ms |
+
+## Multimodal
+
+| Model | Capability | Use |
+|-------|-----------|-----|
+| `minicpm-v:latest` | Vision | Screenshots, UI parsing |
+| PaddleOCR | OCR | Text extraction from images |
+| `faster-whisper` | STT | Audio transcription |
+
+## Model Selection Guide
+
+```
+Your RAM Budget:
+├── 8GB  → deepseek-coder:1.3b only
+├── 16GB → all 3 hot models
+├── 32GB → hot + deepseek-coder-v2:16b
+└── 64GB → everything + full reranker
+```
+
+## No Model Mode
+
+aihelper's core features work **without any LLM**:
+- Semantic routing (intent detection)
+- Symbol graph + dependency graph
+- Compact context assembly (95%+ token reduction)
+- Patch planning + confidence scoring
+- Structural diff
+- Daemon IPC
+
+Models are additive — they enhance the runtime but are not required.

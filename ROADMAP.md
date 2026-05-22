@@ -1,5 +1,17 @@
 # Roadmap
 
+## Phase 7 — OSS Onboarding & Documentation (v0.6) ✅
+- [x] MIT License file added
+- [x] GitHub issue templates (bug, feature, PR)
+- [x] FUNDING.yml (PayPal)
+- [x] Comprehensive README with problem statement, benchmark table, architecture diagram
+- [x] bootstrap.sh with LaunchAgent setup, model pulling, environment validation
+- [x] `aihelper doctor` with full diagnostics (daemon, socket, watchman, ollama, models, cache, ramdisk, permissions)
+- [x] Split install modes (minimal vs full)
+- [x] Installation guide covering Apple Silicon, Linux, minimal/full, performance tuning
+- [x] Public docs: model strategy, local setup, optimization, capability routing
+- [x] 4 examples: fix-php-bug, diagnostics-to-patch, parse-screenshot, generate-presentation
+
 ## Phase 1 — Semantic Runtime (v0.1) ✅
 - [x] Symbol graph + dependency graph indexing
 - [x] Semantic fingerprints (formatting-only ignores)
