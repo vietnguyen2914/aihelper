@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="460" viewBox="0 0 980 460" role="img" aria-labelledby="title desc">
+  <title id="title">aihelper telemetry summary screenshot</title>
+  <desc id="desc">Telemetry dashboard-style terminal output for daemon latency and cache health.</desc>
+  <rect width="980" height="460" rx="18" fill="#101827"/>
+  <text x="38" y="58" fill="#f8fafc" font-family="Inter, Arial, sans-serif" font-size="28" font-weight="700">Telemetry Summary</text>
+  <text x="38" y="92" fill="#94a3b8" font-family="Inter, Arial, sans-serif" font-size="16">Daemon runtime, cache freshness, and context efficiency</text>
+  <rect x="38" y="132" width="270" height="120" rx="10" fill="#172554"/>
+  <text x="62" y="172" fill="#bfdbfe" font-family="Inter, Arial, sans-serif" font-size="15">daemon IPC p50</text>
+  <text x="62" y="220" fill="#ffffff" font-family="Inter, Arial, sans-serif" font-size="42" font-weight="700">0.3ms</text>
+  <rect x="354" y="132" width="270" height="120" rx="10" fill="#14532d"/>
+  <text x="378" y="172" fill="#bbf7d0" font-family="Inter, Arial, sans-serif" font-size="15">token reduction</text>
+  <text x="378" y="220" fill="#ffffff" font-family="Inter, Arial, sans-serif" font-size="42" font-weight="700">95%+</text>
+  <rect x="670" y="132" width="270" height="120" rx="10" fill="#581c87"/>
+  <text x="694" y="172" fill="#e9d5ff" font-family="Inter, Arial, sans-serif" font-size="15">cache status</text>
+  <text x="694" y="220" fill="#ffffff" font-family="Inter, Arial, sans-serif" font-size="42" font-weight="700">fresh</text>
+  <text x="42" y="308" fill="#cbd5e1" font-family="SFMono-Regular, Menlo, Consolas, monospace" font-size="16">route             p50 0.7ms   p95 1.4ms   errors 0</text>
+  <text x="42" y="344" fill="#cbd5e1" font-family="SFMono-Regular, Menlo, Consolas, monospace" font-size="16">symbol_find       p50 3.1ms   p95 7.8ms   errors 0</text>
+  <text x="42" y="380" fill="#cbd5e1" font-family="SFMono-Regular, Menlo, Consolas, monospace" font-size="16">context           p50 0.5ms   p95 2.2ms   errors 0</text>
+  <text x="42" y="416" fill="#cbd5e1" font-family="SFMono-Regular, Menlo, Consolas, monospace" font-size="16">cache_status      p50 0.3ms   p95 0.9ms   errors 0</text>
+</svg>

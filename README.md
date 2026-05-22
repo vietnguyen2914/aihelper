@@ -3,22 +3,25 @@
 [![Python](https://img.shields.io/badge/python-3.9%2B-blue)]()
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey)]()
 [![License](https://img.shields.io/badge/license-MIT-green)]()
+[![GitHub stars](https://img.shields.io/github/stars/vietnguyen2914/aihelper?style=social)](https://github.com/vietnguyen2914/aihelper/stargazers)
+[![GitHub issues](https://img.shields.io/github/issues/vietnguyen2914/aihelper)](https://github.com/vietnguyen2914/aihelper/issues)
+[![Last commit](https://img.shields.io/github/last-commit/vietnguyen2914/aihelper)](https://github.com/vietnguyen2914/aihelper/commits)
 
 > **📖 See [docs/INSTALLATION.md](docs/INSTALLATION.md) for complete setup guide.**  
 > **Context-centric, NOT model-centric.** Retrieval > semantic routing > editor awareness > model size.
 
 ---
 
-## Demo
-
-### Architecture
+## Architecture
 
 ![aihelper Architecture](docs/architecture/aihelper-runtime.svg)
 
-### Workflows
+---
 
-| Demo | Preview |
-|------|---------|
+## Demo Workflows
+
+| Workflow | Preview |
+|---|---|
 | **Bootstrap + Doctor**<br>30s onboarding | <img src="docs/assets/bootstrap.gif" width="320" alt="Bootstrap Demo"> |
 | **Semantic Routing**<br>95% smaller context, 0.7ms latency | <img src="docs/assets/semantic-routing.gif" width="320" alt="Semantic Routing Demo"> |
 | **Patch Planning**<br>AST-aware patches with confidence scoring | <img src="docs/assets/patch-plan.gif" width="320" alt="Patch Planning Demo"> |
@@ -27,14 +30,57 @@
 
 ---
 
+## Example Flow
+
+Compiler error → diagnostics → semantic routing → compact context → patch plan → confidence scoring → safe apply.
+
+```bash
+aihelper diagnostics --file-path src/UserService.php
+aihelper route "fix TypeError in UserService.getUser"
+aihelper context "fix TypeError in UserService.getUser" --max-context-chars 6000
+aihelper patch-plan "add null guard" --file src/UserService.php
+aihelper confidence --patch-file fix.patch --files src/UserService.php
+aihelper safe-apply --patch-file fix.patch --files src/UserService.php --auto-apply
+```
+
+---
+
+## Quick Start
+
+```bash
+# 1. Clone
+git clone https://github.com/vietnguyen2914/aihelper.git
+cd aihelper
+
+# 2. Bootstrap (prerequisites check + env setup)
+bash scripts/bootstrap.sh
+
+# 3. Verify installation
+./bin/aihelper doctor
+
+# 4. Use on any project
+cd /path/to/your/project
+aihelper cache build
+aihelper route "fix payment bug"
+```
+
+> **No Ollama? No problem.** aihelper works without local models — core features (routing, context, symbols, diagnostics, patch planning) are model-free. Models enhance capability but are **optional**.
+
+> **Minimal footprint:** Python 3.9+, macOS/Linux, ~15GB disk for full model stack.  
+> **Cloud-only mode:** Use aihelper purely as a context orchestrator with your preferred cloud model.
+
+---
+
 ## Who is aihelper for?
 
 - **AI-assisted developers** who want sub-millisecond context instead of 50K-token prompts
+- **Developers frustrated by giant AI prompts** and slow context gathering
 - **Local-first coding workflows** — works fully offline, cloud models are optional
 - **MCP users** tired of 10+ heavy servers — aihelper replaces them with 4 lightweight tools
 - **Zed / Codex / Claude / Gemini / VSCode / OpenCode power users** — unified MCP across all editors
 - **Large monorepos** — symbol graph + dependency graph instead of full repo scans
-- **Teams optimizing token usage and latency** — 95%+ reduction, 0.3ms IPC
+- **Teams optimizing AI latency and cost** — 95%+ token reduction, 0.3ms IPC
+- **Vietnamese-first teams** that need multilingual local workflows without giving up English tooling
 
 ---
 
@@ -75,43 +121,42 @@ aihelper takes a different approach:
 | 163ms Python startup per call | 0.3ms daemon IPC |
 | 10-20 tool calls per task | 2-3 targeted calls |
 
+### Runtime Shape
+
+![Memory Tier Chart](docs/benchmarks/memory-tier-chart.svg)
+
 ---
 
 ## Visual Overview
 
-- **Semantic routing** instead of full repo scans
-- **Persistent daemon** instead of cold Python startup  
-- **Patch-first editing** instead of raw rewrites
-- **Capability routing** instead of giant monolithic agents
-- **Local-first models** — run fully offline, cloud is optional
+| Traditional | aihelper |
+|---|---|
+| Scan 5,000 files | Route 7 symbols |
+| Send 50K tokens | Send 750 tokens |
+| Cold start every call | Persistent daemon |
+| Rewrite files | Generate validated patch |
+| One editor stack | Unified MCP across editors |
+| Cloud-only context | Offline-first, cloud optional |
+
+Used successfully on:
+
+- 4,700+ file HIS monorepo
+- 47K+ symbol index
+- Multi-editor workflows across Zed, Codex, Claude, Gemini, VSCode, and OpenCode
+- Vietnamese and English project documentation flows
 
 See [docs/comparisons.md](docs/comparisons.md) for detailed comparisons.
 
 ---
 
-## Quick Start
+## Screenshots
 
-```bash
-# 1. Clone
-git clone https://github.com/vietnguyen2914/aihelper.git
-cd aihelper
-
-# 2. Bootstrap (prerequisites check + env setup)
-bash scripts/bootstrap.sh
-
-# 3. Verify installation
-./bin/aihelper doctor
-
-# 4. Use on any project
-cd /path/to/your/project
-aihelper cache build
-aihelper route "fix payment bug"
-```
-
-> **No Ollama? No problem.** aihelper works without local models — core features (routing, context, symbols, diagnostics, patch planning) are model-free. Models enhance capability but are **optional**.
-
-> **Minimal footprint:** Python 3.9+, macOS/Linux, ~15GB disk for full model stack.  
-> **Cloud-only mode:** Use aihelper purely as a context orchestrator with your preferred cloud model.
+| Surface | Preview |
+|---|---|
+| Doctor output | ![Doctor output](docs/assets/doctor-output.svg) |
+| Semantic routing output | ![Semantic routing output](docs/assets/routing-output.svg) |
+| Telemetry summary | ![Telemetry summary](docs/assets/telemetry-summary.svg) |
+| Zed integration | ![Zed integration](docs/assets/zed-integration.svg) |
 
 ---
 
@@ -164,8 +209,7 @@ Routes by **coding intent**, not file path: `bugfix` → error traces + tests, `
 
 ### ✏️ Patch-Based Editing
 - Unified diff + git apply validation, 5-factor confidence scoring
-- Structural diff (AST-aware: renames, signatures, SQL changes)
-- Safe auto-apply with rollback snapshots, rename impact graph
+- Structural diff plus safe auto-apply with rollback snapshots
 
 ### 🧩 Cross-Editor Integration
 | Editor | Method |
@@ -178,8 +222,9 @@ Routes by **coding intent**, not file path: `bugfix` → error traces + tests, `
 | VSCode | Roo-Cline / Continue.dev |
 
 ### 👁️ Capability Router + Document Pipeline
-- Vision: `minicpm-v` · OCR: `PaddleOCR` · Embeddings: `bge-m3` + `nomic-embed-text`
-- Reranker: `CrossEncoder` · Docs: Mermaid → DBML → Vega-Lite → Marp → PPTX
+Parse screenshots, OCR PDFs, rerank context, and generate presentations locally.
+- Vision/OCR: `minicpm-v`, `PaddleOCR`
+- Docs/data: Mermaid, DBML, Vega-Lite, Marp, PPTX
 
 ---
 
@@ -196,9 +241,11 @@ Routes by **coding intent**, not file path: `bugfix` → error traces + tests, `
 
 Cloud-only mode: use aihelper purely as a context orchestrator — no local models needed.
 
+Works fully offline on Apple Silicon laptops when you use the local model stack.
+
 ---
 
-## Architecture
+## Runtime Map
 
 ```
 Editor (Zed / Codex / VSCode / Gemini / Claude / OpenCode)

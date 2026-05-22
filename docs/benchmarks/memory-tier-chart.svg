@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="380" viewBox="0 0 980 380" role="img" aria-labelledby="title desc">
+  <title id="title">aihelper memory tier chart</title>
+  <desc id="desc">Bar chart showing estimated RAM usage by local model tier.</desc>
+  <rect width="980" height="380" rx="18" fill="#ffffff"/>
+  <text x="42" y="58" fill="#0f172a" font-family="Inter, Arial, sans-serif" font-size="28" font-weight="700">Local Model Memory Tiers</text>
+  <text x="42" y="88" fill="#475569" font-family="Inter, Arial, sans-serif" font-size="15">Works offline on Apple Silicon; cloud models remain optional.</text>
+  <line x1="210" y1="302" x2="908" y2="302" stroke="#cbd5e1"/>
+  <text x="68" y="150" fill="#334155" font-family="Inter, Arial, sans-serif" font-size="15">deepseek-coder 1.3b</text>
+  <rect x="210" y="128" width="136" height="28" rx="5" fill="#38bdf8"/>
+  <text x="360" y="149" fill="#0f172a" font-family="Inter, Arial, sans-serif" font-size="14">2.9GB</text>
+  <text x="68" y="196" fill="#334155" font-family="Inter, Arial, sans-serif" font-size="15">phi4-mini</text>
+  <rect x="210" y="174" width="268" height="28" rx="5" fill="#22c55e"/>
+  <text x="492" y="195" fill="#0f172a" font-family="Inter, Arial, sans-serif" font-size="14">5.7GB</text>
+  <text x="68" y="242" fill="#334155" font-family="Inter, Arial, sans-serif" font-size="15">qwen3.5 4b-16k</text>
+  <rect x="210" y="220" width="287" height="28" rx="5" fill="#a78bfa"/>
+  <text x="511" y="241" fill="#0f172a" font-family="Inter, Arial, sans-serif" font-size="14">6.1GB</text>
+  <text x="68" y="288" fill="#334155" font-family="Inter, Arial, sans-serif" font-size="15">qwen3.5 9b</text>
+  <rect x="210" y="266" width="611" height="28" rx="5" fill="#f59e0b"/>
+  <text x="835" y="287" fill="#0f172a" font-family="Inter, Arial, sans-serif" font-size="14">13GB</text>
+</svg>

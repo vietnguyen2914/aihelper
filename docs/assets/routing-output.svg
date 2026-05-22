@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="460" viewBox="0 0 980 460" role="img" aria-labelledby="title desc">
+  <title id="title">aihelper semantic routing output screenshot</title>
+  <desc id="desc">Terminal-style semantic routing output with selected files, symbols, and token budget.</desc>
+  <rect width="980" height="460" rx="18" fill="#08111f"/>
+  <rect x="0" y="0" width="980" height="42" rx="18" fill="#0b1220"/>
+  <circle cx="26" cy="22" r="7" fill="#ef4444"/>
+  <circle cx="50" cy="22" r="7" fill="#f59e0b"/>
+  <circle cx="74" cy="22" r="7" fill="#22c55e"/>
+  <text x="105" y="27" fill="#cbd5e1" font-family="SFMono-Regular, Menlo, Consolas, monospace" font-size="14">aihelper route</text>
+  <text x="34" y="84" fill="#93c5fd" font-family="SFMono-Regular, Menlo, Consolas, monospace" font-size="18">$ aihelper route "fix payment bug"</text>
+  <text x="34" y="128" fill="#f8fafc" font-family="SFMono-Regular, Menlo, Consolas, monospace" font-size="18">Intent: bugfix</text>
+  <text x="34" y="166" fill="#c4b5fd" font-family="SFMono-Regular, Menlo, Consolas, monospace" font-size="16">Pipeline: diagnostics -> symbol graph -> compact context -> patch plan</text>
+  <text x="34" y="216" fill="#86efac" font-family="SFMono-Regular, Menlo, Consolas, monospace" font-size="16">Selected symbols</text>
+  <text x="62" y="252" fill="#e5e7eb" font-family="SFMono-Regular, Menlo, Consolas, monospace" font-size="15">PaymentService.charge</text>
+  <text x="62" y="282" fill="#e5e7eb" font-family="SFMono-Regular, Menlo, Consolas, monospace" font-size="15">PaymentRepository.findPendingInvoice</text>
+  <text x="62" y="312" fill="#e5e7eb" font-family="SFMono-Regular, Menlo, Consolas, monospace" font-size="15">InvoiceController.retryPayment</text>
+  <text x="520" y="216" fill="#86efac" font-family="SFMono-Regular, Menlo, Consolas, monospace" font-size="16">Budget</text>
+  <text x="548" y="252" fill="#e5e7eb" font-family="SFMono-Regular, Menlo, Consolas, monospace" font-size="15">Files scanned: 0</text>
+  <text x="548" y="282" fill="#e5e7eb" font-family="SFMono-Regular, Menlo, Consolas, monospace" font-size="15">Symbols routed: 7</text>
+  <text x="548" y="312" fill="#e5e7eb" font-family="SFMono-Regular, Menlo, Consolas, monospace" font-size="15">Prompt context: 750 tokens</text>
+  <text x="34" y="388" fill="#bfdbfe" font-family="SFMono-Regular, Menlo, Consolas, monospace" font-size="16">Latency: 0.7ms via daemon</text>
+</svg>
