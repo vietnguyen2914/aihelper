@@ -15,11 +15,11 @@ That command automatically points the helper at the current directory.
 ### HIS PHP project
 
 ```bash
-cd /opt/homebrew/var/www/his
+cd <project-root>
 /Users/vietnguyen/github/aihelper/bin/aihelper "trace outpatient intake flow"
 ```
 
-The launcher uses the current directory as the target project, so the helper reads `/opt/homebrew/var/www/his/ai/...` when you run it from that project root.
+The launcher uses the current directory as the target project, so the helper reads `<project-root>/ai/...` when you run it from that project root.
 
 ## When to use direct `main.py`
 

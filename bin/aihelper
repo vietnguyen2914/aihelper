@@ -17,7 +17,7 @@ Usage:
   aihelper rebuild-index
   aihelper cache build|status|clean|warm
   aihelper cache watch [--once]
-  aihelper cache watch-all --extra-project /opt/homebrew/var/www/his
+  aihelper cache watch-all --extra-project <extra-project-path>
   aihelper prompt-blocks build|show
   aihelper diff-summary
   aihelper memory add|recall
@@ -53,7 +53,7 @@ Examples:
   aihelper cache build
   aihelper cache warm
   aihelper cache watch --once
-  aihelper cache watch-all --once --extra-project /opt/homebrew/var/www/his
+  aihelper cache watch-all --once --extra-project <extra-project-path>
   aihelper prompt-blocks build
   aihelper diff-summary
   aihelper symbol find analyze_request
