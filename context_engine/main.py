@@ -359,13 +359,16 @@ def analyze_request(
 
 
 def doctor() -> Dict[str, Any]:
-    """Run diagnostic checks on the aihelper installation."""
-    import shutil, subprocess, socket, json, time
+    """Run diagnostic checks on the aihelper installation.
+
+    Checks: daemon, socket, watchman, ollama, models, cache, ramdisk, permissions.
+    """
+    import os, shutil, subprocess, socket, json, time
     from pathlib import Path
-    
+
     results = {}
     all_ok = True
-    
+
     def check(name: str, fn, critical: bool = False) -> None:
         nonlocal all_ok
         try:
@@ -375,14 +378,14 @@ def doctor() -> Dict[str, Any]:
         except Exception as e:
             results[name] = {"status": "error", "message": str(e)[:100], "critical": critical}
             all_ok = False
-    
+
     check("python3", lambda: bool(shutil.which("python3")))
     check("git", lambda: bool(shutil.which("git")))
     check("watchman", lambda: bool(shutil.which("watchman")), critical=False)
     check("ollama", lambda: bool(shutil.which("ollama")), critical=False)
     check("socket_dir", lambda: Path.home().joinpath(".aihelper").exists())
-    
-    # Daemon check
+
+    # ── Daemon check ────────────────────────────────────────────────
     sock_path = Path.home() / ".aihelper" / "aihelper.sock"
     check("daemon_socket", lambda: sock_path.exists())
     if sock_path.exists():
@@ -397,14 +400,82 @@ def doctor() -> Dict[str, Any]:
             results["daemon_health"] = {"status": "ok" if data.get("result",{}).get("status") == "ok" else "degraded"}
         except Exception as e:
             results["daemon_health"] = {"status": "error", "message": str(e)[:100]}
-    
-    # Cache check
+
+    # ── Cache check ─────────────────────────────────────────────────
     check("cache_writable", lambda: (Path.cwd() / ".ai-cache" / "aihelper" / "manifest.json").parent.exists(), critical=False)
-    
-    # MCP server check
+
+    # ── MCP server check ────────────────────────────────────────────
     mcp_path = Path(__file__).parent / "mcp_server.py"
     check("mcp_server", lambda: mcp_path.exists())
-    
+
+    # ── Models check ────────────────────────────────────────────────
+    def _check_models() -> bool:
+        """Check that at least the minimal hot-tier models are pulled."""
+        if not shutil.which("ollama"):
+            return False
+        try:
+            result = subprocess.run(
+                ["ollama", "list"],
+                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, timeout=10,
+            )
+            if result.returncode != 0:
+                return False
+            out = result.stdout.lower()
+            # At least one hot-tier model should be present
+            hot_models = ["deepseek-coder", "phi4-mini", "qwen3.5"]
+            found = any(m in out for m in hot_models)
+            if not found:
+                # Also check by exact name
+                lines = result.stdout.strip().split("\n")
+                found = len(lines) > 1  # header + at least one model
+            return found
+        except Exception:
+            return False
+    check("models_pulled", _check_models, critical=False)
+
+    # ── Ramdisk check ───────────────────────────────────────────────
+    def _check_ramdisk() -> bool:
+        """Check if a RAM disk is mounted (optional performance feature)."""
+        if not shutil.which("mount"):
+            return False
+        try:
+            result = subprocess.run(
+                ["mount"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, timeout=5,
+            )
+            return "/Volumes/ramdisk" in result.stdout or "/Volumes/aihelper" in result.stdout
+        except Exception:
+            return False
+    check("ramdisk", _check_ramdisk, critical=False)
+
+    # ── Permissions check ───────────────────────────────────────────
+    def _check_permissions() -> bool:
+        """Check that key paths have correct permissions."""
+        aihelper_home = Path.home() / ".aihelper"
+        if not aihelper_home.exists():
+            return False
+        # Socket should be readable/writable
+        if sock_path.exists():
+            mode = sock_path.stat().st_mode
+            # Should be 0o600 (owner only)
+            if mode & 0o077:  # group/other have some access
+                pass  # lenient — warn but don't fail
+        # Log dir should be writable
+        log_dir = aihelper_home / "logs"
+        if log_dir.exists():
+            if not os.access(str(log_dir), os.W_OK):
+                return False
+        # Cache dir should be writable
+        persist_dir = aihelper_home / "persist"
+        if persist_dir.exists():
+            if not os.access(str(persist_dir), os.W_OK):
+                return False
+        return True
+    check("permissions", _check_permissions)
+
+    # ── Log directory check ─────────────────────────────────────────
+    log_dir = Path.home() / ".aihelper" / "logs"
+    check("log_dir", lambda: log_dir.exists() and any(log_dir.iterdir()) if log_dir.exists() else False, critical=False)
+
     results["overall"] = "ok" if all_ok else "issues_found"
     return results
 

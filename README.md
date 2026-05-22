@@ -1,38 +1,39 @@
 # aihelper — AI-native development runtime
 
+[![Python](https://img.shields.io/badge/python-3.9%2B-blue)]()
+[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey)]()
+[![License](https://img.shields.io/badge/license-MIT-green)]()
 
-> **📖 See [INSTALLATION.md](docs/INSTALLATION.md) for complete setup guide.**
-**Portable AI context engine** that turns any repository into an AI-aware development environment.  
-Built for editors, agents, and local-first coding workflows.
-
-> **Context-centric, NOT model-centric.** Retrieval quality + semantic routing + editor awareness > more params.
-
----
-
-## Why aihelper exists
-
-Most AI coding tools rely on **giant prompts**, **heavy filesystem scans**,
-and **opaque orchestration**. Results: slow agents, token waste, hallucinated edits.
-
-aihelper takes a different approach:
-- **Semantic routing** — route by coding intent, not file path
-- **Compact context** — 95%+ token reduction vs full repo scans
-- **Daemonized hot runtime** — 0.3ms IPC instead of 163ms Python startup
-- **Patch-first editing** — unified diffs with confidence scoring
-- **Local-first models** — 3 hot tiers, 2 medium fallbacks, no cloud dependency
-- **Multimodal capability routing** — vision, OCR, embeddings, reranker, documents
-
-This is not "one more AI tool." This is a **semantic operating layer** for AI-assisted development.
+> **📖 See [docs/INSTALLATION.md](docs/INSTALLATION.md) for complete setup guide.**  
+> **Context-centric, NOT model-centric.** Retrieval > semantic routing > editor awareness > model size.
 
 ---
+
+## Who is aihelper for?
+
+- **AI-assisted developers** who want sub-millisecond context instead of 50K-token prompts
+- **Local-first coding workflows** — works fully offline, cloud models are optional
+- **MCP users** tired of 10+ heavy servers — aihelper replaces them with 4 lightweight tools
+- **Zed / Codex / Claude / Gemini / VSCode / OpenCode power users** — unified MCP across all editors
+- **Large monorepos** — symbol graph + dependency graph instead of full repo scans
+- **Teams optimizing token usage and latency** — 95%+ reduction, 0.3ms IPC
 
 ---
 
 ## Why aihelper?
 
-Most AI coding tools do **full repo scans + giant prompts** → slow, token-heavy, inaccurate.
+Most AI coding tools rely on **giant prompts**, **full repo scans**, and **opaque orchestration**.  
+Results: slow agents, token waste, hallucinated edits.
 
-aihelper does **semantic slicing + intent routing + patch planning** → sub-millisecond, 95%+ token reduction.
+aihelper takes a different approach:
+
+| Traditional AI IDEs | aihelper |
+|-------------------|----------|
+| Full repo scan → 50K+ tokens | Semantic routing → 750 tokens |
+| Cold Python startup (163ms+) | Persistent daemon (0.3ms IPC) |
+| Raw file rewrites | Patch planning + confidence scoring |
+| Single IDE lock-in | 6 editors, unified MCP |
+| Cloud-dependent | Fully offline capable |
 
 ### Benchmarks (M1 Pro 32GB)
 
@@ -49,167 +50,113 @@ aihelper does **semantic slicing + intent routing + patch planning** → sub-mil
 | Without aihelper | With aihelper |
 |-----------------|---------------|
 | 50K+ tokens (full repo scan) | 750 tokens (compact context) |
-| 163ms Python startup per call | 0.3ms daemon IPC |
 | 10-20 tool calls per task | 2-3 targeted calls |
+
+---
+
+## Visual Overview
+
+- **Semantic routing** instead of full repo scans
+- **Persistent daemon** instead of cold Python startup  
+- **Patch-first editing** instead of raw rewrites
+- **Capability routing** instead of giant monolithic agents
+- **Local-first models** — run fully offline, cloud is optional
+
+See [docs/comparisons.md](docs/comparisons.md) for detailed comparisons.
+
+---
+
+## Quick Start
+
+```bash
+# 1. Clone
+git clone https://github.com/vietnguyen2914/aihelper.git
+cd aihelper
+
+# 2. Bootstrap (prerequisites check + env setup)
+bash scripts/bootstrap.sh
+
+# 3. Verify installation
+python3 bin/aihelper doctor
+
+# 4. Use on any project
+cd /path/to/your/project
+aihelper cache build
+aihelper route "fix payment bug"
+```
+
+> **No Ollama? No problem.** aihelper works without local models — core features (routing, context, symbols, diagnostics, patch planning) are model-free. Models enhance capability but are **optional**.
+
+> **Minimal footprint:** Python 3.9+, macOS/Linux, ~15GB disk for full model stack.  
+> **Cloud-only mode:** Use aihelper purely as a context orchestrator with your preferred cloud model.
+
+---
+
+## Workflow Examples
+
+| Workflow | Steps | Try it |
+|----------|-------|--------|
+| **Fix compiler error** | diagnostics → routing → patch plan → confidence → safe apply | [Workflow](docs/workflows/fix-compiler-error.md) |
+| **Analyze repository** | cache build → symbol graph → intent routing → context | [Workflow](docs/workflows/analyze-repo.md) |
+| **Fix PHP bug** | 7-step semantic routing + patch planning | [Example](docs/examples/fix-php-bug.md) |
+| **Parse screenshot** | Vision → OCR → structured extraction | [Example](docs/examples/parse-screenshot.md) |
+| **Generate presentation** | Mermaid → Marp → PPTX | [Example](docs/examples/generate-presentation.md) |
+
+---
+
+## Commands
+
+Full reference: [docs/commands.md](docs/commands.md)
+
+### Core (get started fast)
+```bash
+aihelper doctor                  # Verify installation
+aihelper cache build             # Index your project
+aihelper route "fix bug"         # Route task to optimal tools
+aihelper daemon start            # Zero-latency background runtime
+```
+
+### Key capabilities
+```bash
+aihelper diagnostics --file-path src/Main.java    # Compiler errors → fix
+aihelper structural-diff --patch-file patch.diff  # AST-aware analysis
+aihelper editor-context                           # Detect active editor/file
+aihelper telemetry                                # Daemon metrics
+```
 
 ---
 
 ## Features
 
 ### 🔥 Daemon (Zero Latency)
-- Persistent Unix socket (`~/.aihelper/aihelper.sock`)
-- 47 method handlers in-memory
+- Persistent Unix socket (`~/.aihelper/aihelper.sock`), 49 method handlers in-memory
 - Auto-fallback to direct Python if daemon unavailable
 
-```bash
-aihelper daemon start    # Start persistent daemon
-aihelper daemon status   # 0.3ms health check
-aihelper daemon stop
-```
-
 ### 🧠 Semantic Indexing
-- Symbol graph (47K+ symbols indexed)
-- Dependency graph (import-based)
-- SQL schema summaries
-- Semantic fingerprints (formatting-only changes ignored)
-- Incremental refresh via Watchman
+- Symbol graph (47K+ symbols), dependency graph, SQL schema summaries
+- Semantic fingerprints (formatting-only changes ignored), Watchman-backed incremental refresh
 
 ### 🎯 Intent-Aware Routing
-Routes by **coding intent**, not file path:
-
-| Intent | Model/Pipeline |
-|--------|---------------|
-| `bugfix` | `error_traces + recent_changes + tests` |
-| `refactor` | `dependency_graph + callers + interfaces` |
-| `schema_migration` | `db_schema + migrations + orm_models` |
-| `optimization` | `hot_paths + profiling + algorithm_context` |
+Routes by **coding intent**, not file path: `bugfix` → error traces + tests, `refactor` → callers + interfaces, `schema_migration` → DB schemas + migrations, `optimization` → hot paths + profiling
 
 ### ✏️ Patch-Based Editing
-- Unified diff generation + git apply dry-run
-- 5-factor confidence scoring (syntax, ambiguity, API, tests, files)
-- Auto-apply gated at 0.85 confidence
-- Structural diff: detects renamed methods, changed signatures, SQL changes
-
-### 📊 Structured Telemetry
-```bash
-aihelper telemetry   # Cache hit rate, latency histogram, error tracking
-aihelper health      # Subsystem health (watchman, ramdisk, ollama)
-aihelper degradation # Graceful degradation status
-```
+- Unified diff + git apply validation, 5-factor confidence scoring
+- Structural diff (AST-aware: renames, signatures, SQL changes)
+- Safe auto-apply with rollback snapshots, rename impact graph
 
 ### 🧩 Cross-Editor Integration
+| Editor | Method |
+|--------|--------|
+| Zed | Native MCP via `settings.json` |
+| Claude Desktop | Native MCP |
+| Gemini/Antigravity | Native MCP |
+| Codex | Plugin config |
+| OpenCode | MCP config |
+| VSCode | Roo-Cline / Continue.dev |
 
-| Editor | Integration | Details |
-|--------|-------------|---------|
-| **Zed** | ✅ MCP native | `git`, `fetch`, `context7`, `aihelper` via `settings.json` |
-| **Claude Desktop** | ✅ MCP native | Same 4 MCP servers via `claude_desktop_config.json` |
-| **Gemini/Antigravity** | ✅ MCP native | Via `~/.gemini/config/mcp_config.json` |
-| **Codex** | ✅ Plugin config | Via `~/.codex/config.toml` |
-| **OpenCode** | ✅ MCP config | Via `~/.config/opencode/opencode.json` |
-| **VSCode** | ✅ Extension | Via `rooveterinaryinc.roo-cline` or `Continue.continue` |
-
-### 👁️ Capability Router
-- Vision: `minicpm-v` for screenshots, UI parsing
-- OCR: `PaddleOCR` for text extraction
-- Embeddings: `bge-m3` + `nomic-embed-text`
-- Reranker: `CrossEncoder` for retrieval scoring
-
-### 📄 Document Pipeline
-```
-Markdown content → Mermaid/DBML/Vega specs → Marp renders deck → PPTX/PDF
-```
-- Mermaid diagrams, DBML ERDs, Vega-Lite charts
-- Marp markdown-to-PPTX conversion
-- Pandoc/LibreOffice for format conversion
-- Docling for document structure parsing
-
----
-
-## Quick Start
-
-See [docs/INSTALLATION.md](docs/INSTALLATION.md) for prerequisites, editor integration, daemon setup, and troubleshooting.
-
-
-```bash
-# Install
-git clone https://github.com/vietnguyen2914/aihelper.git
-cd aihelper
-
-# Build cache
-./bin/aihelper cache build --project-root /path/to/your/project
-
-# Route a task
-./bin/aihelper route "fix payment bug"
-
-# MCP server (for editors)
-python3 context_engine/mcp_server.py
-```
-
----
-
-## Examples
-
-See [docs/examples/](./docs/examples/):
-- [Fix PHP Bug](./docs/examples/fix-php-bug.md) — Semantic routing + patch planning
-- [Generate Presentation](./docs/examples/generate-presentation.md) — Mermaid → Marp → PPTX
-- [Parse Screenshot](./docs/examples/parse-screenshot.md) — Vision + OCR
-
-## Commands
-
-### Cache
-```bash
-aihelper cache build             # Full index build
-aihelper cache status            # Freshness + diff
-aihelper cache watch             # Watchman-backed refresh
-aihelper cache persist --all     # RAM cache → SSD (8h auto)
-aihelper cache restore           # SSD → RAM on reboot
-```
-
-### Context
-```bash
-aihelper route "bug fix"         # Intent-aware routing
-aihelper symbol find "UserService"
-aihelper symbol context "method"
-aihelper prompt-blocks show      # Compact summaries
-aihelper diff-summary            # Semantic git diff
-```
-
-### Editor / LSP
-```bash
-aihelper editor-context          # Detect active editor/file
-aihelper lsp definition <file>
-aihelper lsp references <file>
-```
-
-### Patch
-```bash
-aihelper patch-plan "fix" --file src/Main.java
-aihelper structural-diff --patch-file patch.diff
-aihelper impact-graph "UserService"  # Rename impact analysis
-aihelper confidence --patch-file fix.patch
-```
-
-### Document
-```bash
-aihelper generate_mermaid        # Mermaid DSL generation
-aihelper generate_presentation   # Markdown → Marp → PPTX
-aihelper convert_document        # Pandoc/LibreOffice
-aihelper parse_document          # Docling parsing
-```
-
-### Diagnostics
-```bash
-aihelper diagnostics --file-path src/Main.java
-aihelper intent-route "fix null pointer"
-aihelper scheduler snapshot      # Semantic scheduler state
-```
-
-### Health
-```bash
-aihelper telemetry               # Daemon metrics
-aihelper health                  # Subsystem health
-aihelper degradation              # Graceful degradation
-```
+### 👁️ Capability Router + Document Pipeline
+- Vision: `minicpm-v` · OCR: `PaddleOCR` · Embeddings: `bge-m3` + `nomic-embed-text`
+- Reranker: `CrossEncoder` · Docs: Mermaid → DBML → Vega-Lite → Marp → PPTX
 
 ---
 
@@ -217,64 +164,68 @@ aihelper degradation              # Graceful degradation
 
 | Tier | Model | RAM | Role |
 |------|-------|-----|------|
-| 🔥 Hot | `deepseek-coder:1.3b` | 2.9GB | Autocomplete, inline |
-| 🔥 Hot | `phi4-mini:latest` | 5.7GB | Assistant, automation |
-| 🔥 Hot | `qwen3.5:4b-16k` | 6.1GB | Semantic edits, patch |
+| ⚡ Realtime | `deepseek-coder:1.3b` | 2.9GB | Autocomplete, inline |
+| ⚡ Realtime | `phi4-mini:latest` | 5.7GB | Assistant, automation |
+| ⚡ Realtime | `qwen3.5:4b-16k` | 6.1GB | Semantic edits, patch |
 | 🟡 Medium | `deepseek-coder-v2:16b` | ~10GB | Coding fallback (MoE) |
 | 🟡 Medium | `qwen3.5:9b` | ~13GB | Vietnamese, general |
 | ☁️ Cloud | DeepSeek V4 Pro / GPT-5.5 / Gemini | ∞ | Architecture, complex |
+
+Cloud-only mode: use aihelper purely as a context orchestrator — no local models needed.
 
 ---
 
 ## Architecture
 
 ```
-Editor (Zed/Codex/VSCode/Gemini/Claude)
+Editor (Zed / Codex / VSCode / Gemini / Claude / OpenCode)
     ↓
-Unified MCP Profile (git, fetch, context7, aihelper)
+Unified MCP (git, fetch, context7, aihelper)
     ↓
-aihelper Daemon (Unix socket, 47 handlers)
+aihelper Daemon (Unix socket, 49 handlers)
     ├── Semantic Scheduler
-    ├── Symbol/Dependency Graph
+    ├── Symbol / Dependency Graph
     ├── Patch Planner + Confidence Engine
     ├── Intent Router
     ├── Editor Awareness
     ├── LSP Bridge
-    ├── Capability Router (vision, OCR, embeddings, reranker)
-    ├── Document Pipeline (Marp, Mermaid, Pandoc, Vega-Lite)
+    ├── Capability Router
+    ├── Document Pipeline
     ├── Telemetry + Subsystem Health
-    └── Cache Persistence (RAM→SSD, 8h auto)
+    └── Cache Persistence (RAM → SSD)
 ```
 
 ---
 
 ## Requirements
 
-- Python 3.9+
-- Unix-like OS (macOS/Linux)
-- Optional: Watchman (for cache watching)
-- Optional: Ollama (for local models)
+- **Minimal:** Python 3.9+, macOS/Linux, ~15GB disk for full model stack
+- **Optional:** Watchman (cache watching), Ollama (local models), Pandoc/LibreOffice (document export)
+
+---
+
+## Roadmap
+
+See [ROADMAP.md](ROADMAP.md) for completed phases (v0.1–v0.5) and future plans.
+
+---
+
+## Comparisons
+
+See [docs/comparisons.md](docs/comparisons.md) for aihelper vs Cursor, Cline, Windsurf, and raw MCP stacks.
+
+---
+
+## Support
+
+If aihelper improves your workflow, consider supporting:
+- ⭐ Star the repo
+- 🐛 Report issues / suggest features
+- ☕ [Buy me a coffee](https://ko-fi.com/vietnguyen2914)
+- 💼 [GitHub Sponsors](https://github.com/sponsors/vietnguyen2914)
 
 ---
 
 ## License
 
 MIT
-
----
-
-## Roadmap
-
-See [ROADMAP.md](ROADMAP.md) for project direction, completed phases, and future plans.
-
----
-
-## Support
-
-If aihelper improves your AI-assisted development workflow, consider supporting the project:
-- ⭐ Star the repo on GitHub
-- 🐛 Report issues and suggest features
-- ☕ [Buy me a coffee](https://ko-fi.com/vietnguyen2914)
-- 💼 [GitHub Sponsors](https://github.com/sponsors/vietnguyen2914)
-
-Your support helps fund low-latency semantic tooling, local-first AI workflows, multimodal integrations, and OSS maintenance.
