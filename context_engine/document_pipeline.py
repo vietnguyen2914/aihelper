@@ -254,6 +254,88 @@ def generate_presentation(
     }
 
 
+
+
+def dbml_to_mermaid(dbml_text: str) -> Dict[str, Any]:
+    """Convert DBML schema to Mermaid ERD diagram."""
+    lines = dbml_text.split("\n")
+    mermaid_parts = ["erDiagram"]
+    entities = {}
+    current_entity = None
+    refs = []
+
+    for line in lines:
+        line_stripped = line.strip()
+        # Detect table definition
+        if line_stripped.endswith("{") and not line_stripped.startswith("Ref:"):
+            current_entity = line_stripped.split()[1] if len(line_stripped.split()) > 1 else line_stripped.replace("{", "").strip()
+            entities[current_entity] = []
+        # Detect columns
+        elif current_entity and line_stripped and not line_stripped.startswith("}") and not line_stripped.startswith("Ref:"):
+            entities[current_entity].append(line_stripped.rstrip(","))
+        # End of table
+        elif line_stripped == "}":
+            current_entity = None
+        # Reference
+        elif line_stripped.startswith("Ref:"):
+            refs.append(line_stripped)
+
+    # Generate Mermaid entities
+    for entity_name, cols in entities.items():
+        mermaid_parts.append(f"    {entity_name} {{")
+        for col in cols[:20]:  # Limit columns
+            col_clean = col.split("//")[0].strip() if "//" in col else col
+            mermaid_parts.append(f"        {col_clean}")
+        mermaid_parts.append("    }")
+
+    # Generate relationships from Ref:
+    for ref in refs:
+        parts = ref.replace("Ref:", "").strip()
+        if "." in parts:
+            fk = parts.split(".")[0] if "." in parts else parts
+            pk = parts.split(".")[1] if len(parts.split(".")) > 0 else ""
+            mermaid_parts.append(f"    {fk} ||--o{{ {pk.split(' ')[0] if ' ' in pk else pk} : references")
+
+    return {
+        "dbml": dbml_text,
+        "mermaid": "\\n".join(mermaid_parts),
+        "entity_count": len(entities),
+        "ref_count": len(refs),
+    }
+
+
+def _handle_dbml_convert(params: Dict[str, Any]) -> Dict[str, Any]:
+    """Convert DBML to Mermaid ERD."""
+    return dbml_to_mermaid(params.get("dbml", ""))
+
+
+def handle_vega_chart(params: Dict[str, Any]) -> Dict[str, Any]:
+    """Generate Vega-Lite chart spec."""
+    spec = params.get("spec", {})
+    if not spec:
+        spec = {
+            "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+            "mark": "bar",
+            "data": {"values": params.get("data", [{"category": "A", "value": 10}])},
+            "encoding": {
+                "x": {"field": "category", "type": "nominal"},
+                "y": {"field": "value", "type": "quantitative"}
+            }
+        }
+    return {"vega_spec": spec, "html_embed": _vega_to_html(spec)}
+
+
+def _vega_to_html(spec: dict) -> str:
+    """Wrap Vega-Lite spec in an HTML snippet."""
+    import json
+    return f"""<div id="vis"></div>
+<script src="https://cdn.jsdelivr.net/npm/vega@5"></script>
+<script src="https://cdn.jsdelivr.net/npm/vega-lite@5"></script>
+<script src="https://cdn.jsdelivr.net/npm/vega-embed@6"></script>
+<script>
+vegaEmbed('#vis', {json.dumps(spec, indent=2)});
+</script>"""
+
 # ── Daemon handlers ──────────────────────────────────────────────
 
 def handle_generate_mermaid(params: Dict[str, Any]) -> Dict[str, Any]:
@@ -289,6 +371,27 @@ def handle_convert_document(params: Dict[str, Any]) -> Dict[str, Any]:
         params.get("from_format", "markdown"),
         params.get("to_format", "pptx"),
     )
+
+
+def handle_dbml_convert(params: Dict[str, Any]) -> Dict[str, Any]:
+    """Convert DBML to Mermaid ERD."""
+    return dbml_to_mermaid(params.get("dbml", ""))
+
+
+def handle_vega_chart(params: Dict[str, Any]) -> Dict[str, Any]:
+    """Generate Vega-Lite chart spec HTML."""
+    spec = params.get("spec", {})
+    if not spec:
+        spec = {
+            "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+            "mark": "bar",
+            "data": {"values": params.get("data", [{"category": "A", "value": 10}])},
+            "encoding": {
+                "x": {"field": "category", "type": "nominal"},
+                "y": {"field": "value", "type": "quantitative"}
+            }
+        }
+    return {"vega_spec": spec, "html_embed": _vega_to_html(spec)}
 
 
 def handle_parse_document(params: Dict[str, Any]) -> Dict[str, Any]:
