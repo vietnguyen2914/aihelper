@@ -312,7 +312,7 @@ See [ROADMAP.md](ROADMAP.md) for completed phases (v0.1–v0.5) and future plans
 - [Contributing](CONTRIBUTING.md) — report issues and contribute workflow-focused improvements
 - [Changelog](CHANGELOG.md) — release history and upcoming changes
 - [Launch playbook](docs/community/launch-playbook.md) — public messaging and content cadence
-- [Release notes draft](docs/releases/v0.6.0.md) — v0.6.0 highlights and launch assets
+- [Release notes](docs/releases/v0.6.0.md) — v0.6.0 highlights and launch assets
 
 ---
 
