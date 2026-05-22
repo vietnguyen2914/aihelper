@@ -4,6 +4,8 @@
 
 - [INSTALLATION.md](./INSTALLATION.md) — Setup, prerequisites, editor integration (Apple Silicon, Linux, minimal/full)
 - [README.md](../README.md) — Overview, features, benchmarks, commands
+- [CONTRIBUTING.md](../CONTRIBUTING.md) — How to report issues and contribute workflow-focused improvements
+- [CHANGELOG.md](../CHANGELOG.md) — Release history and upcoming changes
 
 ## Core
 
@@ -37,6 +39,13 @@
 - [examples/parse-screenshot.md](./examples/parse-screenshot.md) — Vision + OCR screenshot analysis
 - [examples/generate-presentation.md](./examples/generate-presentation.md) — Mermaid → Marp → PPTX pipeline
 
+## Community
+
+- [community/discussions.md](./community/discussions.md) — Suggested GitHub Discussions setup and first pinned topic
+- [community/launch-playbook.md](./community/launch-playbook.md) — Public launch messaging and content cadence
+- [releases/v0.6.0.md](./releases/v0.6.0.md) — Draft release notes for the next OSS release
+- [blog/semantic-routing-vs-giant-prompts.md](./blog/semantic-routing-vs-giant-prompts.md) — Blog draft for the core positioning narrative
+
 ## Troubleshooting
 
 - [INSTALLATION.md#troubleshooting](./INSTALLATION.md#troubleshooting) — Common issues and solutions
@@ -54,4 +63,4 @@
 ## Development
 
 - [development/](./development/) — Development notes
-- [WORKFLOWS.md](./workflows/WORKFLOWS.md) — Common workflow patterns
+- [workflows/README.md](./workflows/README.md) — Common workflow patterns
