@@ -1,5 +1,7 @@
 # aihelper — AI-native development runtime
 
+
+> **📖 See [INSTALLATION.md](docs/INSTALLATION.md) for complete setup guide.**
 **Portable AI context engine** that turns any repository into an AI-aware development environment.  
 Built for editors, agents, and local-first coding workflows.
 
@@ -105,6 +107,9 @@ Markdown content → Mermaid/DBML/Vega specs → Marp renders deck → PPTX/PDF
 ---
 
 ## Quick Start
+
+See [docs/INSTALLATION.md](docs/INSTALLATION.md) for prerequisites, editor integration, daemon setup, and troubleshooting.
+
 
 ```bash
 # Install
