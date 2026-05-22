@@ -26,4 +26,4 @@ Use `--json` or `-json` if you need the raw JSON object instead.
 - Python stdlib only.
 - Fast filesystem and JSON inspection.
 - Best effort discovery fallback when indexed features are missing or too weak.
-- Designed to work with PHP, Java, or mixed legacy projects as long as the `ai/` folder follows the same shape.
+- Designed to work with PHP, Python, Java, or mixed legacy projects as long as the `ai/` folder follows the same shape.

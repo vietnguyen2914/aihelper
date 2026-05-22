@@ -7,6 +7,7 @@ from typing import Any, Dict
 
 try:
     from .cache import cache_status
+    from .daemon import daemon_call, is_daemon_running
     from .main import analyze_request
     from .patch_engine import build_patch_plan
     from .prompt_blocks import build_prompt_blocks, load_prompt_blocks
@@ -14,8 +15,10 @@ try:
     from .semantic_diff import semantic_diff_summary
     from .symbols import symbol_context
     from .working_memory import recall
+    from .capability_router import select_pipeline
 except ImportError:
     from cache import cache_status
+    from daemon import daemon_call, is_daemon_running
     from main import analyze_request
     from patch_engine import build_patch_plan
     from prompt_blocks import build_prompt_blocks, load_prompt_blocks
@@ -23,6 +26,7 @@ except ImportError:
     from semantic_diff import semantic_diff_summary
     from symbols import symbol_context
     from working_memory import recall
+    from capability_router import select_pipeline
 
 
 SERVER_INFO = {
@@ -176,6 +180,21 @@ def _memory_tool_schema() -> Dict[str, Any]:
     }
 
 
+def _capability_route_tool_schema() -> Dict[str, Any]:
+    return {
+        "name": "aihelper_capability_route",
+        "description": "Classify an input and select a local capability pipeline before sending work to cloud models.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "input": {"type": "string", "description": "Prompt, stack trace, diff header, or content hint to classify."},
+                "file_path": {"type": "string", "description": "Optional file path for extension-based routing."},
+                "project_root": {"type": "string", "description": "Target repository root. Defaults to current working directory."},
+            },
+        },
+    }
+
+
 def _tool_schemas() -> list[Dict[str, Any]]:
     return [
         _context_tool_schema(),
@@ -186,6 +205,7 @@ def _tool_schemas() -> list[Dict[str, Any]]:
         _prompt_blocks_tool_schema(),
         _diff_tool_schema(),
         _memory_tool_schema(),
+        _capability_route_tool_schema(),
     ]
 
 
@@ -212,6 +232,18 @@ def _json_content(data: Dict[str, Any]) -> Dict[str, Any]:
     return {"content": [{"type": "text", "text": json.dumps(data, indent=2, ensure_ascii=False)}]}
 
 
+def _daemon_result(method: str, arguments: Dict[str, Any]) -> Dict[str, Any] | None:
+    try:
+        if not is_daemon_running():
+            return None
+        result = daemon_call(method, arguments)
+    except Exception:
+        return None
+    if isinstance(result, dict) and result.get("error"):
+        return None
+    return result if isinstance(result, dict) else None
+
+
 def _call_tool(name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
     if name == "aihelper_context":
         return _call_context(arguments)
@@ -219,14 +251,20 @@ def _call_tool(name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
         query = str(arguments.get("query", "")).strip()
         if not query:
             raise ValueError("query is required")
-        return _json_content(symbol_context(query, _target_root(arguments), limit=int(arguments.get("limit") or 10)))
+        daemon_data = _daemon_result(
+            "symbol_context",
+            {"query": query, "project_root": str(_target_root(arguments)), "limit": int(arguments.get("limit") or 10)},
+        )
+        return _json_content(daemon_data or symbol_context(query, _target_root(arguments), limit=int(arguments.get("limit") or 10)))
     if name == "aihelper_cache_status":
-        return _json_content(cache_status(_target_root(arguments)))
+        daemon_data = _daemon_result("cache_status", {"project_root": str(_target_root(arguments))})
+        return _json_content(daemon_data or cache_status(_target_root(arguments)))
     if name == "aihelper_route":
         task = str(arguments.get("task", "")).strip()
         if not task:
             raise ValueError("task is required")
-        return _json_content(route_task(task, project_root=_target_root(arguments)))
+        daemon_data = _daemon_result("route", {"task": task, "project_root": str(_target_root(arguments))})
+        return _json_content(daemon_data or route_task(task, project_root=_target_root(arguments)))
     if name == "aihelper_patch_plan":
         task = str(arguments.get("task", "")).strip()
         if not task:
@@ -236,12 +274,26 @@ def _call_tool(name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
         return _json_content(build_patch_plan(task, [str(item) for item in files], _target_root(arguments), style=style))
     if name == "aihelper_prompt_blocks":
         root = _target_root(arguments)
-        data = build_prompt_blocks(root) if bool(arguments.get("build")) else load_prompt_blocks(root)
+        daemon_data = None if bool(arguments.get("build")) else _daemon_result("prompt_blocks", {"project_root": str(root)})
+        data = daemon_data or (build_prompt_blocks(root) if bool(arguments.get("build")) else load_prompt_blocks(root))
         return _json_content(data)
     if name == "aihelper_diff_summary":
-        return _json_content(semantic_diff_summary(_target_root(arguments)))
+        daemon_data = _daemon_result("diff_summary", {"project_root": str(_target_root(arguments))})
+        return _json_content(daemon_data or semantic_diff_summary(_target_root(arguments)))
     if name == "aihelper_memory_recall":
-        return _json_content(recall(_target_root(arguments), str(arguments.get("query") or ""), limit=int(arguments.get("limit") or 10)))
+        daemon_data = _daemon_result(
+            "memory_recall",
+            {"project_root": str(_target_root(arguments)), "query": str(arguments.get("query") or ""), "limit": int(arguments.get("limit") or 10)},
+        )
+        return _json_content(daemon_data or recall(_target_root(arguments), str(arguments.get("query") or ""), limit=int(arguments.get("limit") or 10)))
+    if name == "aihelper_capability_route":
+        input_text = str(arguments.get("input") or "")
+        file_path = str(arguments.get("file_path") or "") or None
+        daemon_data = _daemon_result(
+            "capability_route",
+            {"project_root": str(_target_root(arguments)), "input": input_text, "file_path": file_path},
+        )
+        return _json_content(daemon_data or select_pipeline(input_text, file_path))
     raise ValueError(f"unknown tool: {name}")
 
 
