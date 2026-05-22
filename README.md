@@ -77,7 +77,7 @@ cd aihelper
 bash scripts/bootstrap.sh
 
 # 3. Verify installation
-python3 bin/aihelper doctor
+./bin/aihelper doctor
 
 # 4. Use on any project
 cd /path/to/your/project
