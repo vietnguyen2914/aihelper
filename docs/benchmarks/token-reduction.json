@@ -1,0 +1,28 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+  "title": {
+    "text": "Token Usage per Task: Full Repo Scan vs Compact Context",
+    "fontSize": 14,
+    "subtitle": "Lower is better — 95%+ reduction",
+    "subtitleFontSize": 11
+  },
+  "data": {
+    "values": [
+      {"mode": "Without aihelper", "tokens": 50000},
+      {"mode": "With aihelper", "tokens": 750}
+    ]
+  },
+  "mark": {"type": "bar", "tooltip": true},
+  "encoding": {
+    "x": {"field": "mode", "type": "nominal", "title": "", "sort": null, "axis": {"labelFontSize": 13}},
+    "y": {"field": "tokens", "type": "quantitative", "title": "Tokens", "axis": {"labelFontSize": 12}},
+    "color": {
+      "field": "mode",
+      "type": "nominal",
+      "scale": {"domain": ["Without aihelper", "With aihelper"], "range": ["#e74c3c", "#27ae60"]},
+      "legend": null
+    }
+  },
+  "width": 300,
+  "height": 300
+}

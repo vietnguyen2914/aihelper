@@ -9,6 +9,24 @@
 
 ---
 
+## Demo
+
+### Architecture
+
+![aihelper Architecture](docs/architecture/aihelper-runtime.svg)
+
+### Workflows
+
+| Demo | Preview |
+|------|---------|
+| **Bootstrap + Doctor**<br>30s onboarding | <img src="docs/assets/bootstrap.gif" width="320" alt="Bootstrap Demo"> |
+| **Semantic Routing**<br>95% smaller context, 0.7ms latency | <img src="docs/assets/semantic-routing.gif" width="320" alt="Semantic Routing Demo"> |
+| **Patch Planning**<br>AST-aware patches with confidence scoring | <img src="docs/assets/patch-plan.gif" width="320" alt="Patch Planning Demo"> |
+| **Diagnostics → Patch**<br>Compiler errors → semantic fix flow | <img src="docs/assets/diagnostics-patch.gif" width="320" alt="Diagnostics to Patch Demo"> |
+| **OCR Screenshot Parse**<br>Multimodal orchestration pipeline | <img src="docs/assets/ocr-parse.gif" width="320" alt="OCR Screenshot Demo"> |
+
+---
+
 ## Who is aihelper for?
 
 - **AI-assisted developers** who want sub-millisecond context instead of 50K-token prompts
@@ -37,6 +55,8 @@ aihelper takes a different approach:
 
 ### Benchmarks (M1 Pro 32GB)
 
+![Latency Comparison](docs/benchmarks/latency-comparison.svg)
+
 | Operation | Raw Python | Via Daemon | Reduction |
 |-----------|-----------|------------|-----------|
 | `route` | 163ms | **0.7ms** | 99.6% |
@@ -47,9 +67,12 @@ aihelper takes a different approach:
 
 ### Token Efficiency
 
+![Token Reduction](docs/benchmarks/token-reduction.svg)
+
 | Without aihelper | With aihelper |
 |-----------------|---------------|
 | 50K+ tokens (full repo scan) | 750 tokens (compact context) |
+| 163ms Python startup per call | 0.3ms daemon IPC |
 | 10-20 tool calls per task | 2-3 targeted calls |
 
 ---

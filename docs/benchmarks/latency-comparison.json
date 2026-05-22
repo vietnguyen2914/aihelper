@@ -1,0 +1,35 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+  "title": {
+    "text": "Operation Latency: Raw Python vs Daemon IPC",
+    "fontSize": 14,
+    "subtitle": "Lower is better — log scale",
+    "subtitleFontSize": 11
+  },
+  "data": {
+    "values": [
+      {"operation": "route", "python": 163, "daemon": 0.7},
+      {"operation": "symbol_find", "python": 163, "daemon": 3.1},
+      {"operation": "cache_status", "python": 163, "daemon": 0.3},
+      {"operation": "context", "python": 163, "daemon": 0.5},
+      {"operation": "prompt_assembly", "python": 500, "daemon": 100}
+    ]
+  },
+  "transform": [
+    {"fold": ["python", "daemon"], "as": ["mode", "latency"]}
+  ],
+  "mark": {"type": "bar", "tooltip": true},
+  "encoding": {
+    "x": {"field": "operation", "type": "nominal", "title": "Operation", "sort": null},
+    "y": {"field": "latency", "type": "quantitative", "title": "Latency (ms)", "scale": {"type": "log"}},
+    "color": {
+      "field": "mode",
+      "type": "nominal",
+      "title": "Mode",
+      "scale": {"domain": ["python", "daemon"], "range": ["#e74c3c", "#27ae60"]}
+    },
+    "xOffset": {"field": "mode", "type": "nominal"}
+  },
+  "width": 500,
+  "height": 300
+}

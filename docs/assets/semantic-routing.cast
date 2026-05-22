@@ -1,0 +1,6 @@
+{"version":3,"term":{"cols":73,"rows":5,"type":"xterm-256color","theme":{"fg":"#2a2c33","bg":"#fafafa","palette":"#000000:#de3d34:#3e9539:#d2b67c:#2f5af3:#950095:#0897b3:#bbbbbb:#000000:#de3d34:#3e9539:#d2b67c:#2f5af3:#a00095:#0abbd6:#ffffff"}},"timestamp":1779488900,"command":"bash scripts/demo-routing.sh","env":{"SHELL":"/bin/zsh"}}
+[0.011, "o", "\r\n╔══════════════════════════════════════╗\r\n"]
+[0.000, "o", "║   aihelper Semantic Routing Demo     ║\r\n║   95% smaller context                ║\r\n"]
+[0.000, "o", "║   0.7ms routing latency              ║\r\n║   intent-aware retrieval             ║\r\n╚══════════════════════════════════════╝\r\n\r\n$ cd demo && aihelper cache build\r\n"]
+[0.002, "r", "73x11"]
+[0.314, "x", "1"]
