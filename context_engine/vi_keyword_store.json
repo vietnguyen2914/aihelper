@@ -1,9 +1,12 @@
 {
   "mapping": {
-    "and": "context"
+    "and": "context",
+    "for": "cli"
   },
   "count": {
-    "for": 2,
-    "and": 3
+    "for": 3,
+    "and": 3,
+    "to": 2,
+    "on": 2
   }
 }
