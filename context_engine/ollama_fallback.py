@@ -21,13 +21,24 @@ except ImportError:
     from discovery import discover_feature_from_codebase
 
 
-DEFAULT_OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://localhost:11434")
-DEFAULT_MODEL = os.environ.get("OLLAMA_MODEL", "qwen2.5:latest")
+def _default_ollama_url() -> str:
+    value = os.environ.get("OLLAMA_URL") or os.environ.get("OLLAMA_HOST") or "http://localhost:11434"
+    if value.startswith(("http://", "https://")):
+        return value.rstrip("/")
+    return f"http://{value}".rstrip("/")
+
+
+DEFAULT_OLLAMA_URL = _default_ollama_url()
+DEFAULT_MODEL = os.environ.get("OLLAMA_MODEL", "qwen3.5:4b")
 OLLAMA_MODELS = {
-    "tiny": os.environ.get("OLLAMA_LANGUAGE_MODEL", "qwen2.5:1.5b"),
+    "tiny": os.environ.get("OLLAMA_LANGUAGE_MODEL", "deepseek-coder:1.3b"),
     "medium": os.environ.get("OLLAMA_DISCOVERY_MODEL", "qwen2.5:3b"),
-    "large": os.environ.get("OLLAMA_LARGE_MODEL", "qwen2.5:7b"),
+    "large": os.environ.get("OLLAMA_LARGE_MODEL", "qwen3.5:4b"),
 }
+OLLAMA_KEEP_ALIVE = os.environ.get("OLLAMA_KEEP_ALIVE", "30m")
+OLLAMA_NUM_CTX = int(os.environ.get("OLLAMA_NUM_CTX", "4096"))
+OLLAMA_NUM_PREDICT = int(os.environ.get("OLLAMA_NUM_PREDICT", "768"))
+OLLAMA_TIMEOUT = int(os.environ.get("OLLAMA_TIMEOUT", "60"))
 
 
 def build_discovery_prompt(user_prompt: str, root: Path | None = None) -> str:
@@ -142,7 +153,43 @@ def _resolve_model(model: str = DEFAULT_MODEL, base_url: str = DEFAULT_OLLAMA_UR
             if name.lower().startswith("qwen2.5"):
                 return name
 
+    # Prefer small local coding/general models before accidentally selecting a huge model.
+    preferred = [
+        "deepseek-coder:1.3b",
+        "qwen2.5:3b",
+        "qwen3.5:4b",
+        "qwen3.5:9b",
+    ]
+    for candidate in preferred:
+        if candidate.lower() in normalized:
+            return normalized[candidate.lower()]
+
     return names[0]
+
+
+def ollama_health(base_url: str = DEFAULT_OLLAMA_URL) -> dict:
+    models = _available_models(base_url=base_url)
+    return {
+        "base_url": base_url,
+        "available": bool(models),
+        "models": models,
+        "defaults": {
+            "default": DEFAULT_MODEL,
+            "tiny": OLLAMA_MODELS["tiny"],
+            "medium": OLLAMA_MODELS["medium"],
+            "large": OLLAMA_MODELS["large"],
+            "keep_alive": OLLAMA_KEEP_ALIVE,
+            "num_ctx": OLLAMA_NUM_CTX,
+            "num_predict": OLLAMA_NUM_PREDICT,
+            "timeout": OLLAMA_TIMEOUT,
+        },
+        "resolved": {
+            "default": _resolve_model(DEFAULT_MODEL, base_url=base_url),
+            "tiny": _resolve_model_type("tiny", base_url=base_url),
+            "medium": _resolve_model_type("medium", base_url=base_url),
+            "large": _resolve_model_type("large", base_url=base_url),
+        },
+    }
 
 
 def _resolve_model_type(model_type: str, base_url: str = DEFAULT_OLLAMA_URL) -> str | None:
@@ -172,7 +219,14 @@ def call_ollama(
                 "prompt": prompt,
                 "stream": False,
                 "format": "json",
+                "keep_alive": OLLAMA_KEEP_ALIVE,
+                "options": {
+                    "num_ctx": OLLAMA_NUM_CTX,
+                    "num_predict": OLLAMA_NUM_PREDICT,
+                    "temperature": 0.1,
+                },
             },
+            timeout=OLLAMA_TIMEOUT,
         )
     except (URLError, HTTPError, TimeoutError, json.JSONDecodeError, OSError):
         return None, False
@@ -198,7 +252,14 @@ def generate_with_ollama(prompt: str, model: str = DEFAULT_MODEL, base_url: str 
                 "prompt": prompt,
                 "stream": False,
                 "format": "json",
+                "keep_alive": OLLAMA_KEEP_ALIVE,
+                "options": {
+                    "num_ctx": OLLAMA_NUM_CTX,
+                    "num_predict": OLLAMA_NUM_PREDICT,
+                    "temperature": 0.1,
+                },
             },
+            timeout=OLLAMA_TIMEOUT,
         )
     except (URLError, HTTPError, TimeoutError, json.JSONDecodeError, OSError):
         return None, False

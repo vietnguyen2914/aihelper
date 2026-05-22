@@ -12,7 +12,7 @@ try:
     from .detect_feature import detect_feature_matches, detect_features
     from .discovery import discover_feature_from_codebase
     from .intent_detector import detect_intent
-    from .ollama_fallback import build_discovery_prompt, build_manual_fallback_prompt, call_ollama, generate_with_ollama
+    from .ollama_fallback import build_discovery_prompt, build_manual_fallback_prompt, call_ollama, generate_with_ollama, ollama_health
     from .kb_updater import update_ai_kb
     from .learning import feedback_summary, record_feedback
     from .load_context import load_context_bundle
@@ -22,7 +22,7 @@ except ImportError:
     from detect_feature import detect_feature_matches, detect_features
     from discovery import discover_feature_from_codebase
     from intent_detector import detect_intent
-    from ollama_fallback import build_discovery_prompt, build_manual_fallback_prompt, call_ollama, generate_with_ollama
+    from ollama_fallback import build_discovery_prompt, build_manual_fallback_prompt, call_ollama, generate_with_ollama, ollama_health
     from kb_updater import update_ai_kb
     from learning import feedback_summary, record_feedback
     from load_context import load_context_bundle
@@ -315,8 +315,16 @@ def main() -> int:
     rebuild_parser.add_argument("--project-root", default=None)
     rebuild_parser.add_argument("--json", "-json", action="store_true", default=False, help=argparse.SUPPRESS)
 
+    ollama_parser = subparsers.add_parser("ollama", help="Inspect or prewarm local Ollama models.")
+    ollama_subparsers = ollama_parser.add_subparsers(dest="ollama_command")
+    ollama_health_parser = ollama_subparsers.add_parser("health", help="Print Ollama availability and resolved model defaults.")
+    ollama_health_parser.add_argument("--json", "-json", action="store_true", default=False, help=argparse.SUPPRESS)
+    ollama_prewarm_parser = ollama_subparsers.add_parser("prewarm", help="Preload a small local model with keep_alive.")
+    ollama_prewarm_parser.add_argument("--model-type", choices=("tiny", "medium", "large"), default="medium")
+    ollama_prewarm_parser.add_argument("--json", "-json", action="store_true", default=False, help=argparse.SUPPRESS)
+
     argv = sys.argv[1:]
-    known_commands = {"analyze", "feedback", "feedback-summary", "feedback_summary", "rebuild-index", "rebuild_index"}
+    known_commands = {"analyze", "feedback", "feedback-summary", "feedback_summary", "rebuild-index", "rebuild_index", "ollama"}
     if not argv or argv[0] in {"-h", "--help", "help"}:
         parser.print_help()
         return 0
@@ -397,6 +405,31 @@ def main() -> int:
         else:
             print(render_markdown("Rebuild Index", result))
         return 0
+
+    if argv[0] == "ollama":
+        args = ollama_parser.parse_args(argv[1:])
+        if args.ollama_command == "health":
+            result = ollama_health()
+            if bool(args.json):
+                print(json.dumps(result, indent=2, ensure_ascii=False))
+            else:
+                print(render_markdown("Ollama Health", result))
+            return 0
+        if args.ollama_command == "prewarm":
+            prompt = '{"ok": true, "task": "prewarm"}'
+            output, ready = call_ollama(prompt, model_type=args.model_type)
+            result = {
+                "ready": ready,
+                "model_type": args.model_type,
+                "output_preview": output[:200] if isinstance(output, str) else "",
+                "health": ollama_health(),
+            }
+            if bool(args.json):
+                print(json.dumps(result, indent=2, ensure_ascii=False))
+            else:
+                print(render_markdown("Ollama Prewarm", result))
+            return 0
+        ollama_parser.error("missing ollama command: health or prewarm")
 
     if argv[0] in known_commands:
         parser.error(f"unknown command: {argv[0]}")
