@@ -141,7 +141,7 @@ def lsp_fallback(file_path: str, project_root: str) -> Dict:
     return find_symbols(file_stem, Path(project_root), limit=20)
 
 
-def ollama_primary(prompt: str, model: str = "qwen2.5:3b") -> Optional[str]:
+def ollama_primary(prompt: str, model: str = "qwen3.5:4b") -> Optional[str]:
     """Primary: use local Ollama."""
     import subprocess, json
     result = subprocess.run(
@@ -152,7 +152,7 @@ def ollama_primary(prompt: str, model: str = "qwen2.5:3b") -> Optional[str]:
     return result.stdout.strip() if result.returncode == 0 else None
 
 
-def ollama_fallback_fn(prompt: str, model: str = "qwen2.5:3b") -> Optional[str]:
+def ollama_fallback_fn(prompt: str, model: str = "qwen3.5:4b") -> Optional[str]:
     """Fallback: return None, caller routes to cloud."""
     return None  # Signal to use cloud routing
 

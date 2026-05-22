@@ -53,10 +53,10 @@ Default local model roles:
 | Role | Model | Use |
 |---|---|---|
 | `tiny` | `deepseek-coder:1.3b` | very small code-oriented checks and warmup |
-| `medium` | `qwen2.5:3b` | default unknown-feature discovery |
+| `medium` | `qwen3.5:4b` | default unknown-feature discovery |
 | `large` | `qwen3.5:4b` | heavier local reasoning when still practical |
 
-Avoid `qwen3.5:9b`, `sorc/qwen3.5-claude-4.6-opus:latest`, and `qwen3.6:35b-a3b` for interactive loops on this Mac unless quality matters more than latency.
+Avoid `qwen3.5:9b` and `sorc/qwen3.5-claude-4.6-opus:latest` for interactive loops on this Mac unless quality matters more than latency.
 
 Check and prewarm:
 
