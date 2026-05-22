@@ -160,20 +160,20 @@ echo ""; echo -e "${YELLOW}[6/6] Validating environment...${NC}"
 # Build cache for self
 if $PYTHON_OK; then
     echo -e "  Building aihelper cache..."
-    python3 "$AIHELPER_DIR/bin/aihelper" cache build --project-root "$AIHELPER_DIR" 2>/dev/null && \
+    "$AIHELPER_DIR/bin/aihelper" cache build --project-root "$AIHELPER_DIR" 2>/dev/null && \
         echo -e "  ${GREEN}✅${NC} Cache built" || \
         echo -e "  ${YELLOW}⚠️${NC} Cache build incomplete (non-critical)"
 fi
 
 # Try daemon start
 echo -e "  Starting daemon..."
-python3 "$AIHELPER_DIR/bin/aihelper" daemon start 2>/dev/null && \
+"$AIHELPER_DIR/bin/aihelper" daemon start 2>/dev/null && \
     echo -e "  ${GREEN}✅${NC} Daemon started" || \
     echo -e "  ${YELLOW}⚠️${NC} Daemon start deferred"
 
 # Run doctor
 echo -e "  Running doctor..."
-python3 "$AIHELPER_DIR/bin/aihelper" doctor 2>/dev/null && \
+"$AIHELPER_DIR/bin/aihelper" doctor 2>/dev/null && \
     echo -e "  ${GREEN}✅${NC} Health check passed" || \
     echo -e "  ${YELLOW}⚠️${NC} Doctor reported issues"
 
