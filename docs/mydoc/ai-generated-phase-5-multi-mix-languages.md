@@ -644,7 +644,7 @@ OLLAMA_URL = "http://localhost:11434/api/generate"
 
 MODELS = {
     "tiny": "qwen2.5:1.5b",
-    "medium": "qwen2.5:3b",
+    "medium": "qwen3.5:4b",
     "large": "qwen2.5:7b"
 }
 

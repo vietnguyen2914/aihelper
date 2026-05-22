@@ -39,7 +39,7 @@ def route_model(task: str) -> Dict[str, Any]:
         }
     if tokens & REALTIME_WORDS:
         return {
-            "primary": "qwen2.5:3b",
+            "primary": "deepseek-coder:1.3b",
             "local_fallback": "deepseek-coder:1.3b",
             "reason": "Realtime editor tasks should favor low latency local models.",
         }
@@ -51,7 +51,7 @@ def route_model(task: str) -> Dict[str, Any]:
         }
     return {
         "primary": "aihelper_context+codex",
-        "local_fallback": "qwen2.5:3b",
+        "local_fallback": "deepseek-coder:1.3b",
         "reason": "Default coding path uses compact context first, then targeted patching.",
     }
 

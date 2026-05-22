@@ -32,7 +32,7 @@ DEFAULT_OLLAMA_URL = _default_ollama_url()
 DEFAULT_MODEL = os.environ.get("OLLAMA_MODEL", "qwen3.5:4b")
 OLLAMA_MODELS = {
     "tiny": os.environ.get("OLLAMA_LANGUAGE_MODEL", "deepseek-coder:1.3b"),
-    "medium": os.environ.get("OLLAMA_DISCOVERY_MODEL", "qwen2.5:3b"),
+    "medium": os.environ.get("OLLAMA_DISCOVERY_MODEL", "qwen3.5:4b"),
     "large": os.environ.get("OLLAMA_LARGE_MODEL", "qwen3.5:4b"),
 }
 OLLAMA_KEEP_ALIVE = os.environ.get("OLLAMA_KEEP_ALIVE", "30m")
@@ -147,16 +147,9 @@ def _resolve_model(model: str = DEFAULT_MODEL, base_url: str = DEFAULT_OLLAMA_UR
         if lowered.startswith(requested + ":") or lowered == requested:
             return name
 
-    # Prefer any qwen2.5 family model if the exact request is unavailable.
-    if requested.startswith("qwen2.5") or "qwen2.5" in requested:
-        for name in names:
-            if name.lower().startswith("qwen2.5"):
-                return name
-
     # Prefer small local coding/general models before accidentally selecting a huge model.
     preferred = [
         "deepseek-coder:1.3b",
-        "qwen2.5:3b",
         "qwen3.5:4b",
         "qwen3.5:9b",
     ]
