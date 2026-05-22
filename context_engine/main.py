@@ -8,6 +8,12 @@ from time import perf_counter
 from typing import Any, Dict
 
 try:
+    from .cache_persistence import cache_persist_status, persist_all_projects, restore_cache, persist_cache
+    from .daemon import daemon_call, daemon_status, is_daemon_running, start_daemon, stop_daemon, run_daemon
+    from .warmup import warm_all_projects
+    from .confidence import score_patch
+    from .editor_context import get_editor_context
+    from .lsp_bridge import find_definition, find_all_references, get_document_symbols
     from .build_prompt import build_prompt, rewrite_prompt
     from .cache import build_cache, cache_status, clean_cache, warm_project, watch_all_projects, watch_cache
     from .detect_feature import detect_feature_matches, detect_features
@@ -25,6 +31,12 @@ try:
     from .load_context import load_context_bundle
     from .rebuild_index import rebuild_indexes
 except ImportError:
+    from cache_persistence import cache_persist_status, persist_all_projects, restore_cache, persist_cache
+    from daemon import daemon_call, daemon_status, is_daemon_running, start_daemon, stop_daemon, run_daemon
+    from warmup import warm_all_projects
+    from confidence import score_patch
+    from editor_context import get_editor_context
+    from lsp_bridge import find_definition, find_all_references, get_document_symbols
     from build_prompt import build_prompt, rewrite_prompt
     from cache import build_cache, cache_status, clean_cache, warm_project, watch_all_projects, watch_cache
     from detect_feature import detect_feature_matches, detect_features
@@ -390,6 +402,7 @@ def main() -> int:
     cache_watch_parser = cache_subparsers.add_parser("watch")
     cache_watch_parser.add_argument("--project-root", default=None)
     cache_watch_parser.add_argument("--interval", type=float, default=2.0)
+    cache_watch_parser.add_argument("--persist-interval", type=int, default=28800, help="Persist cache to SSD every N seconds (0=disabled)")
     cache_watch_parser.add_argument("--once", action="store_true")
     cache_watch_parser.add_argument("--max-cycles", type=int, default=0)
     cache_watch_parser.add_argument("--json", "-json", action="store_true", default=False, help=argparse.SUPPRESS)
@@ -397,8 +410,24 @@ def main() -> int:
     cache_watch_all_parser.add_argument("--github-root", default="~/github")
     cache_watch_all_parser.add_argument("--extra-project", action="append", default=[])
     cache_watch_all_parser.add_argument("--interval", type=float, default=2.0)
+    cache_watch_all_parser.add_argument("--persist-interval", type=int, default=28800, help="Persist all caches to SSD every N seconds (default 300=5min, 0=disabled)")
     cache_watch_all_parser.add_argument("--once", action="store_true")
     cache_watch_all_parser.add_argument("--json", "-json", action="store_true", default=False, help=argparse.SUPPRESS)
+
+    # ── Persist / Restore ──────────────────────────────────────────────
+    cache_persist_parser = cache_subparsers.add_parser("persist", help="Persist RAM-based cache to SSD.")
+    cache_persist_parser.add_argument("--project-root", default=None)
+    cache_persist_parser.add_argument("--all", action="store_true", help="Persist all known projects")
+    cache_persist_parser.add_argument("--github-root", default="~/github")
+    cache_persist_parser.add_argument("--json", "-json", action="store_true", default=False, help=argparse.SUPPRESS)
+
+    cache_restore_parser = cache_subparsers.add_parser("restore", help="Restore persisted cache from SSD to RAM.")
+    cache_restore_parser.add_argument("--project-root", default=None)
+    cache_restore_parser.add_argument("--json", "-json", action="store_true", default=False, help=argparse.SUPPRESS)
+
+    cache_persist_status_parser = cache_subparsers.add_parser("persist-status", help="Show cache persistence status.")
+    cache_persist_status_parser.add_argument("--project-root", default=None)
+    cache_persist_status_parser.add_argument("--json", "-json", action="store_true", default=False, help=argparse.SUPPRESS)
 
     blocks_parser = subparsers.add_parser("prompt-blocks", aliases=["prompt_blocks"], help="Build or inspect precompiled prompt blocks.")
     blocks_subparsers = blocks_parser.add_subparsers(dest="blocks_command")
@@ -472,9 +501,155 @@ def main() -> int:
     ollama_prewarm_parser.add_argument("--model-type", choices=("tiny", "medium", "large"), default="medium")
     ollama_prewarm_parser.add_argument("--json", "-json", action="store_true", default=False, help=argparse.SUPPRESS)
 
+    # ── Daemon ─────────────────────────────────────────────────────────
+    daemon_parser = subparsers.add_parser("daemon", help="Manage the aihelper persistent daemon.")
+    daemon_subparsers = daemon_parser.add_subparsers(dest="daemon_command")
+    daemon_start = daemon_subparsers.add_parser("start", help="Start the daemon.")
+    daemon_start.add_argument("--json", "-json", action="store_true", default=False, help=argparse.SUPPRESS)
+    daemon_stop = daemon_subparsers.add_parser("stop", help="Stop the daemon.")
+    daemon_stop.add_argument("--json", "-json", action="store_true", default=False, help=argparse.SUPPRESS)
+    daemon_status_parser = daemon_subparsers.add_parser("status", help="Show daemon status.")
+    daemon_status_parser.add_argument("--json", "-json", action="store_true", default=False, help=argparse.SUPPRESS)
+    daemon_serve = daemon_subparsers.add_parser("serve", help=argparse.SUPPRESS)  # Internal use only
+
+    # ── Editor Context ────────────────────────────────────────────────
+    editor_ctx_parser = subparsers.add_parser("editor-context", aliases=["editor_context"],
+        help="Detect active editor, open file, and git context.")
+    editor_ctx_parser.add_argument("--project-root", default=None)
+    editor_ctx_parser.add_argument("--json", "-json", action="store_true", default=False, help=argparse.SUPPRESS)
+
+    # ── LSP ────────────────────────────────────────────────────────────
+    lsp_parser = subparsers.add_parser("lsp", help="Query language servers for symbols, definitions, references.")
+    lsp_subparsers = lsp_parser.add_subparsers(dest="lsp_command")
+    lsp_def = lsp_subparsers.add_parser("definition", help="Go to definition via LSP.")
+    lsp_def.add_argument("file_path")
+    lsp_def.add_argument("--line", type=int, default=1)
+    lsp_def.add_argument("--character", type=int, default=1)
+    lsp_def.add_argument("--project-root", default=None)
+    lsp_def.add_argument("--json", "-json", action="store_true", default=False, help=argparse.SUPPRESS)
+    lsp_ref = lsp_subparsers.add_parser("references", help="Find references via LSP.")
+    lsp_ref.add_argument("file_path")
+    lsp_ref.add_argument("--line", type=int, default=1)
+    lsp_ref.add_argument("--character", type=int, default=1)
+    lsp_ref.add_argument("--project-root", default=None)
+    lsp_ref.add_argument("--json", "-json", action="store_true", default=False, help=argparse.SUPPRESS)
+    lsp_sym = lsp_subparsers.add_parser("symbols", help="Document symbols via LSP.")
+    lsp_sym.add_argument("file_path")
+    lsp_sym.add_argument("--project-root", default=None)
+    lsp_sym.add_argument("--json", "-json", action="store_true", default=False, help=argparse.SUPPRESS)
+
+    # ── Confidence ─────────────────────────────────────────────────────
+    conf_parser = subparsers.add_parser("confidence", help="Score a patch for auto-apply confidence.")
+    conf_parser.add_argument("--patch-file", help="Path to patch file (or read from stdin)")
+    conf_parser.add_argument("--files", nargs="*", default=[], help="Files affected by the patch")
+    conf_parser.add_argument("--project-root", default=None)
+    conf_parser.add_argument("--json", "-json", action="store_true", default=False, help=argparse.SUPPRESS)
+
+    # ── Structural Diff ────────────────────────────────────────────────
+    sdiff_parser = subparsers.add_parser("structural-diff", aliases=["structural_diff"],
+        help="AST-aware structural patch analysis.")
+    sdiff_parser.add_argument("--patch-file", help="Path to unified diff patch")
+    sdiff_parser.add_argument("--json", "-json", action="store_true", default=False, help=argparse.SUPPRESS)
+
+    # ── Hierarchical Context ───────────────────────────────────────────
+    hctx_parser = subparsers.add_parser("hierarchical-context", aliases=["hierarchical_context"],
+        help="Progressive context expansion (module→package→repo).")
+    hctx_parser.add_argument("--project-root", default=None)
+    hctx_parser.add_argument("--focus-file", default=None, help="File currently being edited")
+    hctx_parser.add_argument("--focus-symbol", default=None, help="Symbol of interest")
+    hctx_parser.add_argument("--level", type=int, default=1, choices=(1,2,3),
+        help="Expansion level: 1=module, 2=package, 3=repo")
+    hctx_parser.add_argument("--json", "-json", action="store_true", default=False, help=argparse.SUPPRESS)
+
+    # ── Scheduler ──────────────────────────────────────────────────────
+    sched_parser = subparsers.add_parser("scheduler", help="Semantic scheduler: snapshot, predict, record.")
+    sched_subparsers = sched_parser.add_subparsers(dest="scheduler_command")
+    sched_snap = sched_subparsers.add_parser("snapshot", help="Full scheduler context snapshot.")
+    sched_snap.add_argument("--json", "-json", action="store_true", default=False, help=argparse.SUPPRESS)
+    sched_pred = sched_subparsers.add_parser("predict", help="Predict next user actions.")
+    sched_pred.add_argument("--json", "-json", action="store_true", default=False, help=argparse.SUPPRESS)
+    sched_rec = sched_subparsers.add_parser("record", help="Record a signal (edit, query, error).")
+    sched_rec.add_argument("--type", required=True, choices=("edit","symbol_query","branch","build_error","route"))
+    sched_rec.add_argument("--file-path", default=None)
+    sched_rec.add_argument("--symbol", default=None)
+    sched_rec.add_argument("--branch", default=None)
+    sched_rec.add_argument("--error", default=None)
+    sched_rec.add_argument("--task", default=None)
+    sched_rec.add_argument("--project-root", default=None)
+    sched_rec.add_argument("--json", "-json", action="store_true", default=False, help=argparse.SUPPRESS)
+
+    # ── Intent Route ────────────────────────────────────────────────────
+    intent_parser = subparsers.add_parser("intent-route", aliases=["intent_route"],
+        help="Route by coding intent (bugfix/refactor/migration etc).")
+    intent_parser.add_argument("task", nargs="?")
+    intent_parser.add_argument("--project-root", default=None)
+    intent_parser.add_argument("--json", "-json", action="store_true", default=False, help=argparse.SUPPRESS)
+
+    # ── Telemetry ───────────────────────────────────────────────────────
+    telemetry_parser = subparsers.add_parser("telemetry", help="Show daemon telemetry and metrics.")
+    telemetry_parser.add_argument("--json", "-json", action="store_true", default=False, help=argparse.SUPPRESS)
+
+    # ── Subsystem Health ────────────────────────────────────────────────
+    health_parser = subparsers.add_parser("health", help="Check subsystem health (watchman, ramdisk, ollama).")
+    health_parser.add_argument("--json", "-json", action="store_true", default=False, help=argparse.SUPPRESS)
+
+    # ── Diagnostics ────────────────────────────────────────────────────
+    diag_parser = subparsers.add_parser("diagnostics", help="Collect compiler/linter diagnostics for files.")
+    diag_parser.add_argument("files", nargs="*", default=[], help="Files to check")
+    diag_parser.add_argument("--file-path", default=None, help="Single file to check")
+    diag_parser.add_argument("--project-root", default=None)
+    diag_parser.add_argument("--json", "-json", action="store_true", default=False, help=argparse.SUPPRESS)
+
+    # ── Impact Graph ───────────────────────────────────────────────────
+    impact_parser = subparsers.add_parser("impact-graph", aliases=["impact_graph"],
+        help="Build rename impact graph for safe refactors.")
+    impact_parser.add_argument("symbol", help="Symbol to analyze")
+    impact_parser.add_argument("--project-root", default=None)
+    impact_parser.add_argument("--max-depth", type=int, default=3)
+    impact_parser.add_argument("--json", "-json", action="store_true", default=False, help=argparse.SUPPRESS)
+
+    # ── Classify Operation ─────────────────────────────────────────────
+    classify_parser = subparsers.add_parser("classify-op", aliases=["classify_op"],
+        help="Classify changes into semantic operation types.")
+    classify_parser.add_argument("--patch-file", help="Path to unified diff patch")
+    classify_parser.add_argument("--json", "-json", action="store_true", default=False, help=argparse.SUPPRESS)
+
+    # ── Degradation Status ─────────────────────────────────────────────
+    degrade_parser = subparsers.add_parser("degradation", help="Show subsystem degradation status.")
+    degrade_parser.add_argument("--json", "-json", action="store_true", default=False, help=argparse.SUPPRESS)
+
+    # ── Warmup ─────────────────────────────────────────────────────────
+    warmup_parser = subparsers.add_parser("warmup", help="Pre-warm all project caches.")
+    warmup_parser.add_argument("--github-root", default="~/github")
+    warmup_parser.add_argument("--extra-project", action="append", default=[])
+    warmup_parser.add_argument("--json", "-json", action="store_true", default=False, help=argparse.SUPPRESS)
+
     argv = sys.argv[1:]
     known_commands = {
         "analyze",
+        "daemon",
+        "editor-context",
+        "editor_context",
+        "lsp",
+        "confidence",
+        "structural-diff",
+        "structural_diff",
+        "hierarchical-context",
+        "hierarchical_context",
+        "scheduler",
+        "intent-route",
+        "intent_route",
+        "telemetry",
+        "health",
+        "diagnostics",
+        "impact-graph",
+        "impact_graph",
+        "classify-op",
+        "classify_op",
+        "degradation",
+        "warmup",
+        "persist",
+        "restore",
         "feedback",
         "feedback-summary",
         "feedback_summary",
@@ -513,6 +688,31 @@ def main() -> int:
         argv = ["prompt-blocks", *argv[1:]]
     if argv[0] == "diff_summary":
         argv = ["diff-summary", *argv[1:]]
+    if argv[0] == "editor_context":
+        argv = ["editor-context", *argv[1:]]
+    if argv[0] == "structural_diff":
+        argv = ["structural-diff", *argv[1:]]
+    if argv[0] == "hierarchical_context":
+        argv = ["hierarchical-context", *argv[1:]]
+    if argv[0] == "intent_route":
+        argv = ["intent-route", *argv[1:]]
+    if argv[0] == "impact_graph":
+        argv = ["impact-graph", *argv[1:]]
+    if argv[0] == "classify_op":
+        argv = ["classify-op", *argv[1:]]
+
+    def _try_daemon_proxy(method: str, params: dict) -> dict | None:
+        """Try to proxy a request through the daemon. Returns None if daemon unavailable."""
+        try:
+            from .daemon import is_daemon_running, daemon_call
+        except ImportError:
+            from daemon import is_daemon_running, daemon_call
+        if not is_daemon_running():
+            return None
+        result = daemon_call(method, params)
+        if "error" in result:
+            return None
+        return result
 
     def _parse_analyze_args(values: list[str]) -> argparse.Namespace:
         args, extras = analyze_parser.parse_known_args(values)
@@ -592,10 +792,14 @@ def main() -> int:
         args = cache_parser.parse_args(argv[1:])
         if args.cache_command == "build":
             target_root = Path(args.project_root or Path.cwd()).resolve()
-            result = build_cache(target_root)
+            result = _try_daemon_proxy("cache_build", {"project_root": str(target_root)})
+            if result is None:
+                result = build_cache(target_root)
         elif args.cache_command == "status":
             target_root = Path(args.project_root or Path.cwd()).resolve()
-            result = cache_status(target_root, include_diff=True)
+            result = _try_daemon_proxy("cache_status", {"project_root": str(target_root), "include_diff": True})
+            if result is None:
+                result = cache_status(target_root, include_diff=True)
         elif args.cache_command == "clean":
             target_root = Path(args.project_root or Path.cwd()).resolve()
             result = clean_cache(target_root)
@@ -605,6 +809,16 @@ def main() -> int:
         elif args.cache_command == "watch":
             target_root = Path(args.project_root or Path.cwd()).resolve()
             result = watch_cache(target_root, interval=args.interval, once=bool(args.once), max_cycles=args.max_cycles)
+            persist_interval = getattr(args, 'persist_interval', 0)
+            if persist_interval > 0:
+                import threading
+                stop_event = threading.Event()
+                from .cache_persistence import persist_on_interval
+                persist_thread = threading.Thread(
+                    target=lambda: persist_on_interval(target_root, persist_interval, stop_event),
+                    daemon=True,
+                )
+                persist_thread.start()
         elif args.cache_command == "watch-all":
             result = watch_all_projects(
                 github_root=Path(args.github_root).expanduser().resolve(),
@@ -612,8 +826,43 @@ def main() -> int:
                 interval=args.interval,
                 once=bool(args.once),
             )
+            persist_interval = getattr(args, 'persist_interval', 28800)
+            if persist_interval > 0:
+                import threading
+                stop_event = threading.Event()
+                from .cache_persistence import persist_on_interval as _persist_on_interval
+                def _persist_loop():
+                    import time
+                    while not stop_event.is_set():
+                        time.sleep(persist_interval)
+                        try:
+                            persist_all_projects(github_root=Path(args.github_root).expanduser().resolve())
+                        except Exception:
+                            pass
+                persist_thread = threading.Thread(target=_persist_loop, daemon=True)
+                persist_thread.start()
+        elif args.cache_command == "persist":
+            if getattr(args, 'all', False):
+                result = _try_daemon_proxy("persist", {"all": True, "github_root": str(Path(args.github_root).expanduser().resolve())})
+                if result is None:
+                    result = persist_all_projects(github_root=Path(args.github_root).expanduser().resolve())
+            else:
+                target_root = Path(args.project_root or Path.cwd()).resolve()
+                result = _try_daemon_proxy("persist", {"project_root": str(target_root)})
+                if result is None:
+                    result = persist_cache(target_root)
+        elif args.cache_command == "restore":
+            target_root = Path(args.project_root or Path.cwd()).resolve()
+            result = _try_daemon_proxy("restore", {"project_root": str(target_root)})
+            if result is None:
+                result = restore_cache(target_root)
+        elif args.cache_command == "persist-status":
+            target_root = Path(args.project_root or Path.cwd()).resolve()
+            result = _try_daemon_proxy("persist_status", {"project_root": str(target_root)})
+            if result is None:
+                result = cache_persist_status(target_root)
         else:
-            cache_parser.error("missing cache command: build, status, clean, warm, watch, or watch-all")
+            cache_parser.error("missing cache command: build, status, clean, warm, watch, watch-all, persist, restore, or persist-status")
         if bool(args.json):
             print(json.dumps(result, indent=2, ensure_ascii=False))
         else:
@@ -626,7 +875,9 @@ def main() -> int:
         if args.blocks_command == "build":
             result = build_prompt_blocks(target_root)
         elif args.blocks_command == "show":
-            result = load_prompt_blocks(target_root)
+            result = _try_daemon_proxy("prompt_blocks", {"project_root": str(target_root)})
+            if result is None:
+                result = load_prompt_blocks(target_root)
         else:
             blocks_parser.error("missing prompt-blocks command: build or show")
         if bool(args.json):
@@ -638,7 +889,9 @@ def main() -> int:
     if argv[0] == "diff-summary":
         args = diff_parser.parse_args(argv[1:])
         target_root = Path(args.project_root or Path.cwd()).resolve()
-        result = semantic_diff_summary(target_root)
+        result = _try_daemon_proxy("diff_summary", {"project_root": str(target_root)})
+        if result is None:
+            result = semantic_diff_summary(target_root)
         if bool(args.json):
             print(json.dumps(result, indent=2, ensure_ascii=False))
         else:
@@ -664,9 +917,13 @@ def main() -> int:
         args = symbol_parser.parse_args(argv[1:])
         target_root = Path(args.project_root or Path.cwd()).resolve()
         if args.symbol_command == "find":
-            result = find_symbols(args.query, target_root, limit=args.limit)
+            result = _try_daemon_proxy("symbol_find", {"query": args.query, "project_root": str(target_root), "limit": args.limit})
+            if result is None:
+                result = find_symbols(args.query, target_root, limit=args.limit)
         elif args.symbol_command == "context":
-            result = symbol_context(args.query, target_root, limit=args.limit)
+            result = _try_daemon_proxy("symbol_context", {"query": args.query, "project_root": str(target_root), "limit": args.limit})
+            if result is None:
+                result = symbol_context(args.query, target_root, limit=args.limit)
         else:
             symbol_parser.error("missing symbol command: find or context")
         if bool(args.json):
@@ -690,7 +947,10 @@ def main() -> int:
         if not args.task:
             route_parser.error("a task is required")
         target_root = Path(args.project_root or Path.cwd()).resolve()
-        result = route_task(args.task, project_root=target_root)
+        # Try daemon proxy first
+        result = _try_daemon_proxy("route", {"task": args.task, "project_root": str(target_root)})
+        if result is None:
+            result = route_task(args.task, project_root=target_root)
         if bool(args.json):
             print(json.dumps(result, indent=2, ensure_ascii=False))
         else:
@@ -752,6 +1012,304 @@ def main() -> int:
                 print(render_markdown("Ollama Prewarm", result))
             return 0
         ollama_parser.error("missing ollama command: health or prewarm")
+
+
+    if argv[0] == "editor-context" or argv[0] == "editor_context":
+        args = editor_ctx_parser.parse_args(argv[1:])
+        target_root = Path(args.project_root or Path.cwd()).resolve()
+        result = _try_daemon_proxy("editor_context", {"project_root": str(target_root)})
+        if result is None:
+            result = get_editor_context(target_root)
+        if bool(args.json):
+            print(json.dumps(result, indent=2, ensure_ascii=False))
+        else:
+            print(render_markdown("Editor Context", result))
+        return 0
+
+    if argv[0] == "lsp":
+        args = lsp_parser.parse_args(argv[1:])
+        target_root = Path(args.project_root or Path.cwd()).resolve()
+        if args.lsp_command == "definition":
+            result = _try_daemon_proxy("lsp_definition", {
+                "file_path": args.file_path, "line": args.line,
+                "character": args.character, "project_root": str(target_root),
+                "query": "",
+            })
+            if result is None:
+                result = find_definition("", args.file_path, args.line, args.character, target_root)
+        elif args.lsp_command == "references":
+            result = _try_daemon_proxy("lsp_references", {
+                "file_path": args.file_path, "line": args.line,
+                "character": args.character, "project_root": str(target_root),
+            })
+            if result is None:
+                result = find_all_references(args.file_path, args.line, args.character, target_root)
+        elif args.lsp_command == "symbols":
+            result = _try_daemon_proxy("lsp_symbols", {
+                "file_path": args.file_path, "project_root": str(target_root),
+            })
+            if result is None:
+                result = get_document_symbols(args.file_path, target_root)
+        else:
+            lsp_parser.error("missing lsp command: definition, references, or symbols")
+        if bool(args.json):
+            print(json.dumps(result, indent=2, ensure_ascii=False))
+        else:
+            print(render_markdown("LSP", result))
+        return 0
+
+    if argv[0] == "confidence":
+        args = conf_parser.parse_args(argv[1:])
+        target_root = Path(args.project_root or Path.cwd()).resolve()
+        # Read patch content
+        patch_content = ""
+        if args.patch_file:
+            try:
+                with open(args.patch_file) as f:
+                    patch_content = f.read()
+            except OSError:
+                pass
+        elif not __import__('sys').stdin.isatty():
+            patch_content = __import__('sys').stdin.read()
+        
+        if not patch_content:
+            conf_parser.error("no patch content provided (use --patch-file or pipe stdin)")
+        
+        result = _try_daemon_proxy("confidence", {
+            "patch_content": patch_content, "files": args.files,
+            "project_root": str(target_root),
+        })
+        if result is None:
+            result = score_patch(patch_content, target_root, args.files)
+        if bool(args.json):
+            print(json.dumps(result, indent=2, ensure_ascii=False))
+        else:
+            print(render_markdown("Confidence Score", result))
+        return 0
+
+    if argv[0] == "warmup":
+        args = warmup_parser.parse_args(argv[1:])
+        result = _try_daemon_proxy("warmup_status", {})
+        if result is None:
+            result = warm_all_projects(
+                github_root=Path(args.github_root).expanduser().resolve(),
+                extra_roots=[Path(item).expanduser().resolve() for item in args.extra_project],
+            )
+        if bool(args.json):
+            print(json.dumps(result, indent=2, ensure_ascii=False))
+        else:
+            print(render_markdown("Warmup", result))
+        return 0
+
+    if argv[0] == "structural-diff":
+        args = sdiff_parser.parse_args(argv[1:])
+        patch_text = ""
+        if args.patch_file:
+            try:
+                with open(args.patch_file) as f:
+                    patch_text = f.read()
+            except OSError:
+                pass
+        elif not sys.stdin.isatty():
+            patch_text = sys.stdin.read()
+        if not patch_text:
+            sdiff_parser.error("no patch provided (use --patch-file or pipe stdin)")
+        result = _try_daemon_proxy("structural_diff", {"patch_text": patch_text})
+        if result is None:
+            from structural_diff import analyze_patch
+            result = analyze_patch(patch_text)
+        if bool(args.json):
+            print(json.dumps(result, indent=2, ensure_ascii=False))
+        else:
+            print(render_markdown("Structural Diff", result))
+        return 0
+
+    if argv[0] == "hierarchical-context":
+        args = hctx_parser.parse_args(argv[1:])
+        target_root = Path(args.project_root or Path.cwd()).resolve()
+        result = _try_daemon_proxy("hierarchical_context", {
+            "project_root": str(target_root),
+            "focus_file": args.focus_file,
+            "focus_symbol": args.focus_symbol,
+            "expansion_level": args.level,
+        })
+        if result is None:
+            from structural_diff import build_hierarchical_context
+            result = build_hierarchical_context(target_root, args.focus_file, args.focus_symbol, args.level)
+        if bool(args.json):
+            print(json.dumps(result, indent=2, ensure_ascii=False))
+        else:
+            print(render_markdown("Hierarchical Context", result))
+        return 0
+
+    if argv[0] == "scheduler":
+        args = sched_parser.parse_args(argv[1:])
+        if args.scheduler_command == "snapshot":
+            result = _try_daemon_proxy("scheduler_snapshot", {})
+            if result is None:
+                from scheduler import get_scheduler
+                result = get_scheduler().get_context_snapshot()
+        elif args.scheduler_command == "predict":
+            result = _try_daemon_proxy("scheduler_predict", {})
+            if result is None:
+                from scheduler import get_scheduler
+                result = {"predictions": get_scheduler().predict_next_actions()}
+        elif args.scheduler_command == "record":
+            params = {"type": args.type}
+            if args.file_path: params["file_path"] = args.file_path
+            if args.symbol: params["symbol"] = args.symbol
+            if args.branch: params["branch"] = args.branch
+            if args.error: params["error"] = args.error
+            if args.task: params["task"] = args.task
+            if args.project_root: params["project_root"] = args.project_root
+            result = _try_daemon_proxy("scheduler_record", params)
+            if result is None:
+                from scheduler import handle_scheduler_record
+                result = handle_scheduler_record(params)
+        else:
+            sched_parser.error("missing scheduler command: snapshot, predict, or record")
+        if bool(args.json):
+            print(json.dumps(result, indent=2, ensure_ascii=False))
+        else:
+            print(render_markdown("Scheduler", result))
+        return 0
+
+    if argv[0] == "intent-route":
+        args = intent_parser.parse_args(argv[1:])
+        if not args.task:
+            intent_parser.error("a task is required")
+        target_root = Path(args.project_root or Path.cwd()).resolve()
+        result = _try_daemon_proxy("intent_route", {"task": args.task, "project_root": str(target_root)})
+        if result is None:
+            from intent_router import route_with_intent
+            result = route_with_intent(args.task, str(target_root))
+        if bool(args.json):
+            print(json.dumps(result, indent=2, ensure_ascii=False))
+        else:
+            print(render_markdown("Intent Route", result))
+        return 0
+
+    if argv[0] == "telemetry":
+        args = telemetry_parser.parse_args(argv[1:])
+        result = _try_daemon_proxy("telemetry", {})
+        if result is None:
+            from telemetry import get_telemetry
+            result = get_telemetry().get_snapshot()
+        if bool(args.json):
+            print(json.dumps(result, indent=2, ensure_ascii=False))
+        else:
+            print(render_markdown("Telemetry", result))
+        return 0
+
+    if argv[0] == "health":
+        args = health_parser.parse_args(argv[1:])
+        result = _try_daemon_proxy("subsystem_health", {})
+        if result is None:
+            from subsystem_health import get_subsystem_manager
+            mgr = get_subsystem_manager()
+            for sub in mgr.subsystems.values():
+                sub.check()
+            result = mgr.health_report()
+        if bool(args.json):
+            print(json.dumps(result, indent=2, ensure_ascii=False))
+        else:
+            print(render_markdown("Subsystem Health", result))
+        return 0
+
+    if argv[0] == "diagnostics":
+        args = diag_parser.parse_args(argv[1:])
+        target_root = Path(args.project_root or Path.cwd()).resolve()
+        params = {"project_root": str(target_root)}
+        if args.file_path:
+            params["file_path"] = args.file_path
+        if args.files:
+            params["files"] = args.files
+        result = _try_daemon_proxy("diagnostics", params)
+        if result is None:
+            from diagnostics import collect_diagnostics, collect_project_diagnostics
+            if args.files:
+                result = collect_project_diagnostics(target_root, args.files)
+            elif args.file_path:
+                result = collect_diagnostics(args.file_path, target_root)
+            else:
+                diag_parser.error("provide --file-path or files")
+        if bool(args.json):
+            print(json.dumps(result, indent=2, ensure_ascii=False))
+        else:
+            print(render_markdown("Diagnostics", result))
+        return 0
+
+    if argv[0] == "impact-graph":
+        args = impact_parser.parse_args(argv[1:])
+        target_root = Path(args.project_root or Path.cwd()).resolve()
+        result = _try_daemon_proxy("impact_graph", {
+            "symbol": args.symbol, "project_root": str(target_root),
+            "max_depth": args.max_depth,
+        })
+        if result is None:
+            from impact_graph import build_impact_graph
+            result = build_impact_graph(args.symbol, target_root, args.max_depth)
+        if bool(args.json):
+            print(json.dumps(result, indent=2, ensure_ascii=False))
+        else:
+            print(render_markdown("Impact Graph", result))
+        return 0
+
+    if argv[0] == "classify-op":
+        args = classify_parser.parse_args(argv[1:])
+        patch_text = ""
+        if args.patch_file:
+            try:
+                with open(args.patch_file) as f:
+                    patch_text = f.read()
+            except OSError:
+                pass
+        elif not sys.stdin.isatty():
+            patch_text = sys.stdin.read()
+        if not patch_text:
+            classify_parser.error("no patch provided (use --patch-file or pipe stdin)")
+        from structural_diff import _parse_diff_changes
+        changes = _parse_diff_changes(patch_text)
+        result = _try_daemon_proxy("classify_operation", {"changes": changes})
+        if result is None:
+            from impact_graph import classify_operation
+            result = {"operation_type": classify_operation(changes), "change_count": len(changes)}
+        if bool(args.json):
+            print(json.dumps(result, indent=2, ensure_ascii=False))
+        else:
+            print(render_markdown("Classify Operation", result))
+        return 0
+
+    if argv[0] == "degradation":
+        args = degrade_parser.parse_args(argv[1:])
+        result = _try_daemon_proxy("degradation_status", {})
+        if result is None:
+            from degradation import get_degradation_manager
+            result = get_degradation_manager().status_report()
+        if bool(args.json):
+            print(json.dumps(result, indent=2, ensure_ascii=False))
+        else:
+            print(render_markdown("Degradation Status", result))
+        return 0
+
+    if argv[0] == "daemon":
+        args = daemon_parser.parse_args(argv[1:])
+        if args.daemon_command == "start":
+            result = start_daemon()
+        elif args.daemon_command == "stop":
+            result = stop_daemon()
+        elif args.daemon_command == "status":
+            result = daemon_status()
+        elif args.daemon_command == "serve":
+            run_daemon()
+            return 0
+        else:
+            daemon_parser.error("missing daemon command: start, stop, or status")
+        if bool(args.json):
+            print(json.dumps(result, indent=2, ensure_ascii=False))
+        else:
+            print(render_markdown("Daemon", result))
+        return 0
 
     if argv[0] in known_commands:
         parser.error(f"unknown command: {argv[0]}")
