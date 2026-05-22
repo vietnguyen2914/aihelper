@@ -401,6 +401,25 @@ def build_cache(project_root: Path) -> Dict[str, Any]:
     project_root = project_root.resolve()
     paths = cache_paths(project_root)
     paths["root"].mkdir(parents=True, exist_ok=True)
+
+    # Auto-restore from SSD if RAM cache was lost (e.g. after reboot)
+    try:
+        from .cache_persistence import auto_restore_if_needed
+    except ImportError:
+        from cache_persistence import auto_restore_if_needed
+    restore_result = auto_restore_if_needed(project_root)
+    if restore_result.get("restored"):
+        # Cache restored from SSD — skip full rebuild
+        manifest_path = paths["manifest"]
+        if manifest_path.exists():
+            import json
+            try:
+                with open(manifest_path) as f:
+                    manifest = json.load(f)
+                return {"manifest": manifest, "cache_dir": str(paths["root"]), "restored_from_persist": True}
+            except (json.JSONDecodeError, OSError):
+                pass
+
     file_index = build_file_index(project_root)
     repo_summary = build_repo_summary(project_root, file_index)
     symbol_graph = build_symbol_graph(project_root, file_index)
