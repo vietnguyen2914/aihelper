@@ -62,17 +62,17 @@ cd aihelper
 pip install -r requirements.txt
 
 # 3. Build cache for your project
-python3 bin/aihelper cache build --project-root /path/to/your/project
+./bin/aihelper cache build --project-root /path/to/your/project  # correct invocation
 
 # 4. Start daemon
-python3 bin/aihelper daemon start
+./bin/aihelper daemon start
 
 # 5. Route your first task
-python3 bin/aihelper route "find the upload service"
+./bin/aihelper route "find the upload service"
 
 # 6. Verify
-python3 bin/aihelper doctor
-python3 bin/aihelper daemon status
+./bin/aihelper doctor
+./bin/aihelper daemon status
 ```
 
 **Hot-tier models** (recommended, adds ~10GB):
@@ -395,7 +395,7 @@ aihelper health
 
 | Problem | Likely Cause | Solution |
 |---------|-------------|----------|
-| `daemon: not found` | Wrong working dir | Run from aihelper root: `python3 bin/aihelper` |
+| `daemon: not found` | Wrong working dir | Run from aihelper root: `./bin/aihelper` |
 | `cache: command not found` | Wrong subcommand | Use `cache build` not just `cache` |
 | MCP server connection refused | Daemon not running | `aihelper daemon start` |
 | Symbol graph empty | No code files | Project must have .py/.rs/.js/.php etc. |
@@ -434,7 +434,7 @@ aihelper degradation
 
 ```bash
 # 1. Stop daemon
-python3 bin/aihelper daemon stop
+./bin/aihelper daemon stop
 
 # 2. Remove aihelper directory
 rm -rf /path/to/aihelper
