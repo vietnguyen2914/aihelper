@@ -8,25 +8,46 @@
 [![Last commit](https://img.shields.io/github/last-commit/vietnguyen2914/aihelper)](https://github.com/vietnguyen2914/aihelper/commits)
 
 > **📖 See [docs/INSTALLATION.md](docs/INSTALLATION.md) for complete setup guide.**  
-> **Context-centric, NOT model-centric.** Retrieval > semantic routing > editor awareness > model size.
+> **Stop sending giant prompts.** aihelper is an AI-native semantic runtime for low-latency coding assistants.
 
----
+Replace giant repo scans, 50K-token prompts, cold Python startups, and hallucinated rewrites with semantic routing, compact context, a daemonized hot runtime, and patch-first editing.
 
-## Architecture
-
-![aihelper Architecture](docs/architecture/aihelper-runtime.svg)
+**Context-centric, not model-centric:** retrieval > semantic routing > editor awareness > model size.
 
 ---
 
 ## Demo Workflows
 
-| Workflow | Preview |
-|---|---|
-| **Bootstrap + Doctor**<br>30s onboarding | <img src="docs/assets/bootstrap.gif" width="320" alt="Bootstrap Demo"> |
-| **Semantic Routing**<br>95% smaller context, 0.7ms latency | <img src="docs/assets/semantic-routing.gif" width="320" alt="Semantic Routing Demo"> |
-| **Patch Planning**<br>AST-aware patches with confidence scoring | <img src="docs/assets/patch-plan.gif" width="320" alt="Patch Planning Demo"> |
-| **Diagnostics → Patch**<br>Compiler errors → semantic fix flow | <img src="docs/assets/diagnostics-patch.gif" width="320" alt="Diagnostics to Patch Demo"> |
-| **OCR Screenshot Parse**<br>Multimodal orchestration pipeline | <img src="docs/assets/ocr-parse.gif" width="320" alt="OCR Screenshot Demo"> |
+<table width="100%">
+  <thead>
+    <tr>
+      <th width="24%">Workflow</th>
+      <th width="76%">Preview</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Bootstrap + Doctor</strong><br>30s onboarding</td>
+      <td><img src="docs/assets/bootstrap.gif" width="100%" alt="Bootstrap Demo"></td>
+    </tr>
+    <tr>
+      <td><strong>Semantic Routing</strong><br>95% smaller context, 0.7ms latency</td>
+      <td><img src="docs/assets/semantic-routing.gif" width="100%" alt="Semantic Routing Demo"></td>
+    </tr>
+    <tr>
+      <td><strong>Patch Planning</strong><br>AST-aware patches with confidence scoring</td>
+      <td><img src="docs/assets/patch-plan.gif" width="100%" alt="Patch Planning Demo"></td>
+    </tr>
+    <tr>
+      <td><strong>Diagnostics → Patch</strong><br>Compiler errors → semantic fix flow</td>
+      <td><img src="docs/assets/diagnostics-patch.gif" width="100%" alt="Diagnostics to Patch Demo"></td>
+    </tr>
+    <tr>
+      <td><strong>OCR Screenshot Parse</strong><br>Multimodal orchestration pipeline</td>
+      <td><img src="docs/assets/ocr-parse.gif" width="100%" alt="OCR Screenshot Demo"></td>
+    </tr>
+  </tbody>
+</table>
 
 ---
 
@@ -245,6 +266,12 @@ Works fully offline on Apple Silicon laptops when you use the local model stack.
 
 ---
 
+## Architecture
+
+![aihelper Architecture](docs/architecture/aihelper-runtime.svg)
+
+---
+
 ## Runtime Map
 
 ```
@@ -291,8 +318,8 @@ See [docs/comparisons.md](docs/comparisons.md) for aihelper vs Cursor, Cline, Wi
 If aihelper improves your workflow, consider supporting:
 - ⭐ Star the repo
 - 🐛 Report issues / suggest features
-- ☕ [Buy me a coffee](https://ko-fi.com/vietnguyen2914)
-- 💼 [GitHub Sponsors](https://github.com/sponsors/vietnguyen2914)
+- ☕ If aihelper saves you time or reduces token costs, consider [buying me a coffee](https://ko-fi.com/vietnguyen2914)
+- 💼 Sponsor ongoing development through [GitHub Sponsors](https://github.com/sponsors/vietnguyen2914)
 
 ---
 
