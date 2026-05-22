@@ -10,6 +10,8 @@ This project follows a lightweight release-note style. Dates use `YYYY-MM-DD`.
 
 - Contributor guide for focused workflow-driven pull requests.
 - Community launch and discussion docs.
+- Hacker News and Reddit launch drafts.
+- Testimonial collection guide for future public quotes.
 - Draft v0.6.0 release notes.
 - Blog draft explaining semantic routing versus giant prompts.
 
