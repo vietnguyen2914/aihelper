@@ -6,9 +6,23 @@ from pathlib import Path
 from typing import Any, Dict
 
 try:
+    from .cache import cache_status
     from .main import analyze_request
+    from .patch_engine import build_patch_plan
+    from .prompt_blocks import build_prompt_blocks, load_prompt_blocks
+    from .router import route_task
+    from .semantic_diff import semantic_diff_summary
+    from .symbols import symbol_context
+    from .working_memory import recall
 except ImportError:
+    from cache import cache_status
     from main import analyze_request
+    from patch_engine import build_patch_plan
+    from prompt_blocks import build_prompt_blocks, load_prompt_blocks
+    from router import route_task
+    from semantic_diff import semantic_diff_summary
+    from symbols import symbol_context
+    from working_memory import recall
 
 
 SERVER_INFO = {
@@ -25,7 +39,7 @@ def _error(message_id: Any, code: int, message: str) -> Dict[str, Any]:
     return {"jsonrpc": "2.0", "id": message_id, "error": {"code": code, "message": message}}
 
 
-def _tool_schema() -> Dict[str, Any]:
+def _context_tool_schema() -> Dict[str, Any]:
     return {
         "name": "aihelper_context",
         "description": (
@@ -59,19 +73,176 @@ def _tool_schema() -> Dict[str, Any]:
     }
 
 
-def _call_tool(arguments: Dict[str, Any]) -> Dict[str, Any]:
+def _symbol_tool_schema() -> Dict[str, Any]:
+    return {
+        "name": "aihelper_symbol_lookup",
+        "description": "Find symbol definitions and nearby import/dependency context from the local aihelper cache.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "Symbol, class, function, method, or file hint to look up."},
+                "project_root": {"type": "string", "description": "Target repository root. Defaults to current working directory."},
+                "limit": {"type": "integer", "default": 10},
+            },
+            "required": ["query"],
+        },
+    }
+
+
+def _cache_status_tool_schema() -> Dict[str, Any]:
+    return {
+        "name": "aihelper_cache_status",
+        "description": "Inspect whether the target repository has a fresh aihelper persistent cache.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "project_root": {"type": "string", "description": "Target repository root. Defaults to current working directory."}
+            },
+        },
+    }
+
+
+def _route_tool_schema() -> Dict[str, Any]:
+    return {
+        "name": "aihelper_route",
+        "description": "Route a task to the smallest useful set of tools and target symbols before broad file reads.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "task": {"type": "string", "description": "The coding, analysis, or verification task."},
+                "project_root": {"type": "string", "description": "Target repository root. Defaults to current working directory."},
+            },
+            "required": ["task"],
+        },
+    }
+
+
+def _patch_tool_schema() -> Dict[str, Any]:
+    return {
+        "name": "aihelper_patch_plan",
+        "description": "Create a proposal-only patch template for exact target files. Does not modify files.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "task": {"type": "string", "description": "The change to make."},
+                "files": {"type": "array", "items": {"type": "string"}, "description": "Exact relative files to patch."},
+                "project_root": {"type": "string", "description": "Target repository root. Defaults to current working directory."},
+                "style": {"type": "string", "enum": ["unified", "search-replace"], "default": "unified"},
+            },
+            "required": ["task"],
+        },
+    }
+
+
+def _prompt_blocks_tool_schema() -> Dict[str, Any]:
+    return {
+        "name": "aihelper_prompt_blocks",
+        "description": "Build or load precompiled prompt blocks such as architecture, DB, symbol, and recent git summaries.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "project_root": {"type": "string", "description": "Target repository root. Defaults to current working directory."},
+                "build": {"type": "boolean", "default": False},
+            },
+        },
+    }
+
+
+def _diff_tool_schema() -> Dict[str, Any]:
+    return {
+        "name": "aihelper_diff_summary",
+        "description": "Generate a compact semantic summary of current git diff without returning full source patches.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "project_root": {"type": "string", "description": "Target repository root. Defaults to current working directory."}
+            },
+        },
+    }
+
+
+def _memory_tool_schema() -> Dict[str, Any]:
+    return {
+        "name": "aihelper_memory_recall",
+        "description": "Recall lightweight local working memory for the target repository.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "default": ""},
+                "project_root": {"type": "string", "description": "Target repository root. Defaults to current working directory."},
+                "limit": {"type": "integer", "default": 10},
+            },
+        },
+    }
+
+
+def _tool_schemas() -> list[Dict[str, Any]]:
+    return [
+        _context_tool_schema(),
+        _symbol_tool_schema(),
+        _cache_status_tool_schema(),
+        _route_tool_schema(),
+        _patch_tool_schema(),
+        _prompt_blocks_tool_schema(),
+        _diff_tool_schema(),
+        _memory_tool_schema(),
+    ]
+
+
+def _target_root(arguments: Dict[str, Any]) -> Path:
+    project_root = arguments.get("project_root")
+    return Path(project_root).expanduser().resolve() if isinstance(project_root, str) and project_root.strip() else Path.cwd()
+
+
+def _call_context(arguments: Dict[str, Any]) -> Dict[str, Any]:
     task = str(arguments.get("task", "")).strip()
     if not task:
         raise ValueError("task is required")
 
-    project_root = arguments.get("project_root")
-    root = Path(project_root).expanduser().resolve() if isinstance(project_root, str) and project_root.strip() else Path.cwd()
+    root = _target_root(arguments)
     max_context_chars = int(arguments.get("max_context_chars") or 6000)
     output_format = str(arguments.get("format") or "prompt")
 
     result = analyze_request(task, max_context_chars=max_context_chars, root=root)
     text = result["final_prompt"] if output_format == "prompt" else json.dumps(result, indent=2, ensure_ascii=False)
     return {"content": [{"type": "text", "text": text}]}
+
+
+def _json_content(data: Dict[str, Any]) -> Dict[str, Any]:
+    return {"content": [{"type": "text", "text": json.dumps(data, indent=2, ensure_ascii=False)}]}
+
+
+def _call_tool(name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
+    if name == "aihelper_context":
+        return _call_context(arguments)
+    if name == "aihelper_symbol_lookup":
+        query = str(arguments.get("query", "")).strip()
+        if not query:
+            raise ValueError("query is required")
+        return _json_content(symbol_context(query, _target_root(arguments), limit=int(arguments.get("limit") or 10)))
+    if name == "aihelper_cache_status":
+        return _json_content(cache_status(_target_root(arguments)))
+    if name == "aihelper_route":
+        task = str(arguments.get("task", "")).strip()
+        if not task:
+            raise ValueError("task is required")
+        return _json_content(route_task(task, project_root=_target_root(arguments)))
+    if name == "aihelper_patch_plan":
+        task = str(arguments.get("task", "")).strip()
+        if not task:
+            raise ValueError("task is required")
+        files = arguments.get("files") if isinstance(arguments.get("files"), list) else []
+        style = str(arguments.get("style") or "unified")
+        return _json_content(build_patch_plan(task, [str(item) for item in files], _target_root(arguments), style=style))
+    if name == "aihelper_prompt_blocks":
+        root = _target_root(arguments)
+        data = build_prompt_blocks(root) if bool(arguments.get("build")) else load_prompt_blocks(root)
+        return _json_content(data)
+    if name == "aihelper_diff_summary":
+        return _json_content(semantic_diff_summary(_target_root(arguments)))
+    if name == "aihelper_memory_recall":
+        return _json_content(recall(_target_root(arguments), str(arguments.get("query") or ""), limit=int(arguments.get("limit") or 10)))
+    raise ValueError(f"unknown tool: {name}")
 
 
 def handle(message: Dict[str, Any]) -> Dict[str, Any] | None:
@@ -92,15 +263,13 @@ def handle(message: Dict[str, Any]) -> Dict[str, Any] | None:
         return None
 
     if method == "tools/list":
-        return _response(message_id, {"tools": [_tool_schema()]})
+        return _response(message_id, {"tools": _tool_schemas()})
 
     if method == "tools/call":
         params = message.get("params") if isinstance(message.get("params"), dict) else {}
         name = params.get("name")
-        if name != "aihelper_context":
-            return _error(message_id, -32602, f"unknown tool: {name}")
         try:
-            result = _call_tool(params.get("arguments") if isinstance(params.get("arguments"), dict) else {})
+            result = _call_tool(str(name), params.get("arguments") if isinstance(params.get("arguments"), dict) else {})
         except Exception as exc:
             return _error(message_id, -32000, str(exc))
         return _response(message_id, result)
