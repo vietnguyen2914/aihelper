@@ -1,24 +1,34 @@
-# AI Helper Documentation
+# Documentation
 
-This repository contains a compact, reusable kickoff kit for documenting a project and building its AI knowledge base.
+## Getting Started
 
-## Start Here
+- [INSTALLATION.md](./INSTALLATION.md) — Setup, prerequisites, editor integration
+- [README.md](../README.md) — Overview, features, benchmarks, commands
 
-- [Project Knowledge Base](./PROJECT-KNOWLEDGE-BASE.md)
-- [Function Mindmap](./architecture/function-mindmap.md)
-- [Use Cases](./use-cases/README.md)
-- [Function / Use Case vs System Matrix](./architecture/use-case-system-matrix.md)
-- [Entity / Route Matrix](./architecture/entity-crud-matrix.md)
-- [Core Project Map](./core/README.md)
-- [Features Map](./features/README.md)
-- [Workflows](./workflows/README.md)
-- [Integrations](./integrations/README.md)
-- [AI Agent Guide](./ai-agent/README.md)
-- [Platform And Operations](./platform/platform-and-operations.md)
-- [Target Project Runtime Guide](./runtime/target-project-runtime.md)
-- [Development Workflow](./development/entity-generation-and-custom-id-patterns.md)
+## Core
 
-## Supporting Material
+- [core/models.md](./core/models.md) — Local model stack, benchmarks, context strategy
 
-- [Project KB Generation Notes](./analysis/project-kb-generation.md)
+## Architecture
 
+- [architecture/](./architecture/) — System design, use cases, entity CRUD
+
+## Integrations
+
+- [integrations/](./integrations/) — Editor MCP configs, platform notes
+
+## Runtime
+
+- [runtime/target-project-runtime.md](./runtime/target-project-runtime.md) — Runtime configuration
+
+## Features
+
+- [features/](./features/) — Feature documentation
+
+## Use Cases
+
+- [use-cases/](./use-cases/) — Business use cases
+
+## Development
+
+- [development/](./development/) — Development notes
