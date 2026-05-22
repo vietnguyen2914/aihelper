@@ -57,7 +57,7 @@ Local Ollama is used only for unknown-feature discovery and explicit `ollama pre
 
 Use `aihelper route "<task>"` before broad reads. The router keeps `aihelper_context` as the primary coding path, recommends `context7` for upstream docs, DB schema summaries for SQL tasks, browser/profile tools only when UI verification is needed, and a model route for local vs cloud work. Generic filesystem access should be exact-path fallback rather than recursive discovery.
 
-`patch-plan` emits proposal templates. `patch-apply` accepts standard git unified diffs, runs `git apply --check` by default, and only mutates files when `--apply` is passed. `validate-files` runs lightweight native validation for known stacks such as PHP, TypeScript, and Java.
+`patch-plan` emits proposal templates. `patch-apply` accepts standard git unified diffs, runs `git apply --check` by default, and only mutates files when `--apply` is passed. `validate-files` runs lightweight native validation for known stacks such as PHP, Python, TypeScript, and Java.
 
 For agent tools that support MCP, expose aihelper through:
 

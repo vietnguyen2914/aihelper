@@ -585,6 +585,14 @@ def main() -> int:
     intent_parser.add_argument("--project-root", default=None)
     intent_parser.add_argument("--json", "-json", action="store_true", default=False, help=argparse.SUPPRESS)
 
+    # ── Capability Route ───────────────────────────────────────────────
+    capability_parser = subparsers.add_parser("capability-route", aliases=["capability_route"],
+        help="Classify input and select auxiliary local capability pipeline.")
+    capability_parser.add_argument("input", nargs="?")
+    capability_parser.add_argument("--file-path", default=None)
+    capability_parser.add_argument("--project-root", default=None)
+    capability_parser.add_argument("--json", "-json", action="store_true", default=False, help=argparse.SUPPRESS)
+
     # ── Telemetry ───────────────────────────────────────────────────────
     telemetry_parser = subparsers.add_parser("telemetry", help="Show daemon telemetry and metrics.")
     telemetry_parser.add_argument("--json", "-json", action="store_true", default=False, help=argparse.SUPPRESS)
@@ -639,6 +647,8 @@ def main() -> int:
         "scheduler",
         "intent-route",
         "intent_route",
+        "capability-route",
+        "capability_route",
         "telemetry",
         "health",
         "diagnostics",
@@ -696,6 +706,8 @@ def main() -> int:
         argv = ["hierarchical-context", *argv[1:]]
     if argv[0] == "intent_route":
         argv = ["intent-route", *argv[1:]]
+    if argv[0] == "capability_route":
+        argv = ["capability-route", *argv[1:]]
     if argv[0] == "impact_graph":
         argv = ["impact-graph", *argv[1:]]
     if argv[0] == "classify_op":
@@ -1187,6 +1199,24 @@ def main() -> int:
             print(json.dumps(result, indent=2, ensure_ascii=False))
         else:
             print(render_markdown("Intent Route", result))
+        return 0
+
+    if argv[0] == "capability-route":
+        args = capability_parser.parse_args(argv[1:])
+        input_text = args.input or ""
+        target_root = Path(args.project_root or Path.cwd()).resolve()
+        result = _try_daemon_proxy("capability_route", {
+            "input": input_text,
+            "file_path": args.file_path,
+            "project_root": str(target_root),
+        })
+        if result is None:
+            from capability_router import select_pipeline
+            result = select_pipeline(input_text, args.file_path)
+        if bool(args.json):
+            print(json.dumps(result, indent=2, ensure_ascii=False))
+        else:
+            print(render_markdown("Capability Route", result))
         return 0
 
     if argv[0] == "telemetry":

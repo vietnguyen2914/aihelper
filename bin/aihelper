@@ -37,6 +37,7 @@ Usage:
   aihelper structural-diff [--patch-file <file>]
   aihelper hierarchical-context [--focus-file <file>] [--level 1|2|3]
   aihelper scheduler snapshot|predict|record
+  aihelper capability-route "<input>" [--file-path path/to/file]
   aihelper diagnostics <file>...
   aihelper impact-graph <symbol>
   aihelper classify-op --patch-file <file>
@@ -57,6 +58,7 @@ Examples:
   aihelper diff-summary
   aihelper symbol find analyze_request
   aihelper route "fix checkout service"
+  aihelper capability-route "Error: TypeError at UserService.getUser()"
   aihelper ollama health
   aihelper ollama prewarm --model-type medium
 
@@ -131,7 +133,7 @@ case "$1" in
     print_guide
     exit 0
     ;;
-  analyze|feedback|feedback-summary|feedback_summary|rebuild-index|rebuild_index|cache|prompt-blocks|prompt_blocks|diff-summary|diff_summary|memory|symbol|deps|route|patch-plan|patch_plan|patch-apply|patch_apply|validate-files|validate_files|ollama|daemon|editor-context|editor_context|lsp|confidence|structural-diff|structural_diff|hierarchical-context|hierarchical_context|scheduler|intent-route|intent_route|telemetry|health|diagnostics|impact-graph|impact_graph|classify-op|classify_op|degradation|warmup)
+  analyze|feedback|feedback-summary|feedback_summary|rebuild-index|rebuild_index|cache|prompt-blocks|prompt_blocks|diff-summary|diff_summary|memory|symbol|deps|route|patch-plan|patch_plan|patch-apply|patch_apply|validate-files|validate_files|ollama|daemon|editor-context|editor_context|lsp|confidence|structural-diff|structural_diff|hierarchical-context|hierarchical_context|scheduler|intent-route|intent_route|capability-route|capability_route|telemetry|health|diagnostics|impact-graph|impact_graph|classify-op|classify_op|degradation|warmup)
     case "$1" in
       rebuild_index) set -- rebuild-index "${@:2}" ;;
       feedback_summary) set -- feedback-summary "${@:2}" ;;
@@ -140,6 +142,7 @@ case "$1" in
       validate_files) set -- validate-files "${@:2}" ;;
       prompt_blocks) set -- prompt-blocks "${@:2}" ;;
       diff_summary) set -- diff-summary "${@:2}" ;;
+      capability_route) set -- capability-route "${@:2}" ;;
     esac
     if [[ "$1" == "analyze" ]]; then
       shift

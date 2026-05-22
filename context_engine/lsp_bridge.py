@@ -226,12 +226,32 @@ def _detect_lsp_command(project_root: Path) -> Optional[Dict[str, Any]]:
         }
 
     # Check for Python project
-    if (project_root / "setup.py").exists() or (project_root / "pyproject.toml").exists():
+    python_indicators = [
+        "setup.py",
+        "pyproject.toml",
+        "requirements.txt",
+        "Pipfile",
+        "Pipfile.lock",
+        "environment.yml",
+        "conda.yml",
+        "runtime.txt",
+    ]
+    if any((project_root / indicator).exists() for indicator in python_indicators):
         return {
             "language": "python",
             "command": ["pylsp"],
             "name": "pylsp",
         }
+
+    try:
+        if next(project_root.rglob("*.py"), None) is not None:
+            return {
+                "language": "python",
+                "command": ["pylsp"],
+                "name": "pylsp",
+            }
+    except Exception:
+        pass
 
     return None
 

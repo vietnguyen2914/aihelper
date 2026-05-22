@@ -275,6 +275,8 @@ def _load_external_handlers() -> None:
         from .impact_graph import handle_impact_graph as _hig, handle_classify_operation as _hco
         from .auto_apply import handle_safe_apply as _hsa, handle_intent_continuation as _hic2, handle_branch_memory as _hbm
         from .session_bootstrap import handle_bootstrap as _hboot
+        from .capability_router import handle_capability_route as _hcr, handle_capability_vision as _hcv, handle_capability_ocr as _hco2, handle_capability_rerank as _hcr2, handle_capability_embed as _hce
+        from .document_pipeline import handle_generate_mermaid as _hgm, handle_render_diagram as _hrd, handle_generate_presentation as _hgp, handle_convert_document as _hcd, handle_parse_document as _hpd
         _external_handlers = {
             "editor_context": _hec,
             "lsp_definition": _hld,
@@ -297,6 +299,16 @@ def _load_external_handlers() -> None:
             "safe_apply": _hsa,
             "intent_continuation": _hic2,
             "branch_memory": _hbm,
+            "capability_route": _hcr,
+            "capability_vision": _hcv,
+            "capability_ocr": _hco2,
+            "capability_rerank": _hcr2,
+            "capability_embed": _hce,
+            "generate_mermaid": _hgm,
+            "render_diagram": _hrd,
+            "generate_presentation": _hgp,
+            "convert_document": _hcd,
+            "parse_document": _hpd,
             "bootstrap": _hboot,
         }
     except ImportError:
@@ -314,6 +326,8 @@ def _load_external_handlers() -> None:
         from impact_graph import handle_impact_graph as _hig, handle_classify_operation as _hco
         from auto_apply import handle_safe_apply as _hsa, handle_intent_continuation as _hic2, handle_branch_memory as _hbm
         from session_bootstrap import handle_bootstrap as _hboot
+        from capability_router import handle_capability_route as _hcr, handle_capability_vision as _hcv, handle_capability_ocr as _hco2, handle_capability_rerank as _hcr2, handle_capability_embed as _hce
+        from document_pipeline import handle_generate_mermaid as _hgm, handle_render_diagram as _hrd, handle_generate_presentation as _hgp, handle_convert_document as _hcd, handle_parse_document as _hpd
         _external_handlers = {
             "editor_context": _hec,
             "lsp_definition": _hld,
@@ -336,6 +350,16 @@ def _load_external_handlers() -> None:
             "safe_apply": _hsa,
             "intent_continuation": _hic2,
             "branch_memory": _hbm,
+            "capability_route": _hcr,
+            "capability_vision": _hcv,
+            "capability_ocr": _hco2,
+            "capability_rerank": _hcr2,
+            "capability_embed": _hce,
+            "generate_mermaid": _hgm,
+            "render_diagram": _hrd,
+            "generate_presentation": _hgp,
+            "convert_document": _hcd,
+            "parse_document": _hpd,
             "bootstrap": _hboot,
         }
 
