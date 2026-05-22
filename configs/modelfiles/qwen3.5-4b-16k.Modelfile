@@ -1,0 +1,8 @@
+# Ollama Modelfile for qwen3.5:4b optimized at 16K context
+# Created: 2026-05-23
+# Usage: ollama create qwen3.5:4b-16k -f this-file
+FROM qwen3.5:4b
+PARAMETER num_ctx 16384
+PARAMETER temperature 0.3
+PARAMETER top_p 0.95
+PARAMETER top_k 20
