@@ -15,6 +15,8 @@ and patch-first editing.
 
 ## Hacker News Draft
 
+Full draft: [hacker-news-post.md](./hacker-news-post.md)
+
 Title options:
 
 - I replaced 50K-token repo scans with semantic routing and a 0.3ms daemon
@@ -29,6 +31,8 @@ Post outline:
 5. The proof: GIFs, latency chart, token reduction chart, and install command.
 
 ## Reddit Draft Angles
+
+Full drafts: [reddit-posts.md](./reddit-posts.md)
 
 | Community | Angle |
 |---|---|
@@ -62,3 +66,4 @@ How I reduced AI coding context by 95%
 - GitHub release notes include GIFs and benchmark charts.
 - Discussions are enabled and seeded.
 - Issues are triaged within 24-48 hours during launch week.
+- Testimonials are collected only from real users with permission.
