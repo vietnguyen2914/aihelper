@@ -276,7 +276,7 @@ def _load_external_handlers() -> None:
         from .auto_apply import handle_safe_apply as _hsa, handle_intent_continuation as _hic2, handle_branch_memory as _hbm
         from .session_bootstrap import handle_bootstrap as _hboot
         from .capability_router import handle_capability_route as _hcr, handle_capability_vision as _hcv, handle_capability_ocr as _hco2, handle_capability_rerank as _hcr2, handle_capability_embed as _hce
-        from .document_pipeline import handle_generate_mermaid as _hgm, handle_render_diagram as _hrd, handle_generate_presentation as _hgp, handle_convert_document as _hcd, handle_parse_document as _hpd
+        from .document_pipeline import handle_generate_mermaid as _hgm, handle_render_diagram as _hrd, handle_generate_presentation as _hgp, handle_convert_document as _hcd, handle_parse_document as _hpd, handle_dbml_convert as _hdbc, handle_vega_chart as _hvc
         _external_handlers = {
             "editor_context": _hec,
             "lsp_definition": _hld,
@@ -309,6 +309,8 @@ def _load_external_handlers() -> None:
             "generate_presentation": _hgp,
             "convert_document": _hcd,
             "parse_document": _hpd,
+            "dbml_convert": _hdbc,
+            "vega_chart": _hvc,
             "bootstrap": _hboot,
         }
     except ImportError:
@@ -327,7 +329,7 @@ def _load_external_handlers() -> None:
         from auto_apply import handle_safe_apply as _hsa, handle_intent_continuation as _hic2, handle_branch_memory as _hbm
         from session_bootstrap import handle_bootstrap as _hboot
         from capability_router import handle_capability_route as _hcr, handle_capability_vision as _hcv, handle_capability_ocr as _hco2, handle_capability_rerank as _hcr2, handle_capability_embed as _hce
-        from document_pipeline import handle_generate_mermaid as _hgm, handle_render_diagram as _hrd, handle_generate_presentation as _hgp, handle_convert_document as _hcd, handle_parse_document as _hpd
+        from document_pipeline import handle_generate_mermaid as _hgm, handle_render_diagram as _hrd, handle_generate_presentation as _hgp, handle_convert_document as _hcd, handle_parse_document as _hpd, handle_dbml_convert as _hdbc, handle_vega_chart as _hvc
         _external_handlers = {
             "editor_context": _hec,
             "lsp_definition": _hld,
@@ -360,6 +362,8 @@ def _load_external_handlers() -> None:
             "generate_presentation": _hgp,
             "convert_document": _hcd,
             "parse_document": _hpd,
+            "dbml_convert": _hdbc,
+            "vega_chart": _hvc,
             "bootstrap": _hboot,
         }
 
