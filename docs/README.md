@@ -46,7 +46,7 @@
 - [community/hacker-news-post.md](./community/hacker-news-post.md) — Hacker News launch draft
 - [community/reddit-posts.md](./community/reddit-posts.md) — Reddit launch drafts
 - [community/testimonials.md](./community/testimonials.md) — Testimonial collection guide
-- [releases/v0.6.0.md](./releases/v0.6.0.md) — Draft release notes for the next OSS release
+- [releases/v0.6.0.md](./releases/v0.6.0.md) — Release notes for v0.6.0
 - [blog/semantic-routing-vs-giant-prompts.md](./blog/semantic-routing-vs-giant-prompts.md) — Blog draft for the core positioning narrative
 
 ## Troubleshooting

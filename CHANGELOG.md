@@ -21,7 +21,7 @@ This project follows a lightweight release-note style. Dates use `YYYY-MM-DD`.
 - Demo workflow previews use a wider table layout for better GitHub readability.
 - OCR and diagnostics GIF demos were regenerated at a shorter, more readable size.
 
-## v0.6.0 - Draft
+## v0.6.0 - 2026-05-23
 
 ### Added
 
