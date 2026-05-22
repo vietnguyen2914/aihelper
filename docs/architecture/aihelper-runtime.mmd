@@ -1,82 +1,95 @@
-architecture-beta
+flowchart LR
+  subgraph Editors["Editors"]
+    direction LR
+    Z["Zed"]
+    CX["Codex"]
+    VS["VSCode"]
+    CD["Claude Desktop"]
+    GM["Gemini"]
+    OC["OpenCode"]
+  end
 
-group editors(cloud)[Editors]
+  subgraph MCP["Unified MCP Profile"]
+    GIT["git"]
+    FETCH["fetch"]
+    C7["context7"]
+    AH_MCP["aihelper MCP"]
+  end
 
-service zed(server)[Zed] in editors
-service codex(server)[Codex] in editors
-service vscode(server)[VSCode] in editors
-service claude(server)[Claude Desktop] in editors
-service gemini(server)[Gemini / Antigravity] in editors
-service opencode(server)[OpenCode] in editors
+  subgraph Daemon["aihelper Daemon (47 handlers)"]
+    direction LR
+    SOCK["Unix Socket Runtime"]
+    SCH["Semantic Scheduler"]
+    SYM["Symbol Graph"]
+    DEP["Dependency Graph"]
+    IR["Intent Router"]
+    PP["Patch Planner"]
+    CE["Confidence Engine"]
+    LSP["LSP Bridge"]
+    CR["Capability Router"]
+    TEL["Telemetry"]
+    PERS["RAM to SSD Cache"]
+  end
 
-group mcp(cloud)[Unified MCP]
+  subgraph Models["Models"]
+    DS["deepseek-coder 1.3b"]
+    PHI["phi4-mini"]
+    Q4["qwen3.5 4b-16k"]
+    Q9["qwen3.5 9b"]
+    CLD["GPT / Claude / Gemini"]
+  end
 
-service git(database)[git] in mcp
-service fetch(database)[fetch] in mcp
-service context7(database)[context7] in mcp
-service aihelper(server)[aihelper MCP] in mcp
+  subgraph Multi["Multimodal Stack"]
+    OCR["PaddleOCR"]
+    VIS["minicpm-v"]
+    EMB["nomic + bge-m3"]
+    RNK["CrossEncoder"]
+    DOC["Marp Mermaid DBML"]
+  end
 
-group daemon(cloud)[aihelper Daemon]
+  Z -->|MCP| GIT
+  CX -->|MCP| GIT
+  VS -->|MCP| GIT
+  CD -->|MCP| GIT
+  GM -->|MCP| GIT
+  OC -->|MCP| GIT
 
-service socket(server)[Unix Socket Runtime] in daemon
-service scheduler(server)[Semantic Scheduler] in daemon
-service symbols(database)[Symbol Graph] in daemon
-service deps(database)[Dependency Graph] in daemon
-service routing(server)[Intent Router] in daemon
-service patch(server)[Patch Planner] in daemon
-service confidence(server)[Confidence Engine] in daemon
-service lsp(server)[LSP Bridge] in daemon
-service multimodal(server)[Capability Router] in daemon
-service telemetry(server)[Telemetry] in daemon
-service persistence(database)[RAM→SSD Cache] in daemon
+  GIT -.-> SOCK
+  FETCH -.-> SOCK
+  C7 -.-> SOCK
+  AH_MCP -.-> SOCK
 
-group models(cloud)[Models]
+  SOCK --- SCH
+  SOCK --- SYM
+  SOCK --- DEP
+  SOCK --- IR
+  SOCK --- PP
+  SOCK --- CE
+  SOCK --- LSP
+  SOCK --- CR
+  SOCK --- TEL
+  SOCK --- PERS
 
-service ds13b(server)[deepseek-coder:1.3b] in models
-service phi(server)[phi4-mini] in models
-service qwen4b(server)[qwen3.5:4b-16k] in models
-service qwen9b(server)[qwen3.5:9b] in models
-service cloud(server)[GPT / Claude / Gemini] in models
+  IR --- DS
+  IR --- PHI
+  IR --- Q4
+  IR --- Q9
+  IR --- CLD
 
-group aux(cloud)[Multimodal Stack]
+  CR --- OCR
+  CR --- VIS
+  CR --- EMB
+  CR --- RNK
+  CR --- DOC
 
-service ocr(server)[PaddleOCR] in aux
-service vision(server)[minicpm-v] in aux
-service embed(server)[nomic + bge-m3] in aux
-service rerank(server)[CrossEncoder] in aux
-service docs(server)[Marp / Mermaid / DBML] in aux
+  classDef editor fill:#e1f5fe,stroke:#0288d1,color:#01579b
+  classDef mcp fill:#f3e5f5,stroke:#7b1fa2,color:#4a148c
+  classDef daemon fill:#e8f5e9,stroke:#388e3c,color:#1b5e20
+  classDef model fill:#fff3e0,stroke:#f57c00,color:#e65100
+  classDef multi fill:#fce4ec,stroke:#c62828,color:#b71c1c
 
-zed:R -- L:git
-codex:R -- L:git
-vscode:R -- L:git
-claude:R -- L:git
-gemini:R -- L:git
-opencode:R -- L:git
-
-git:B -- T:socket
-fetch:B -- T:socket
-context7:B -- T:socket
-aihelper:B -- T:socket
-
-socket:R -- L:scheduler
-socket:R -- L:symbols
-socket:R -- L:deps
-socket:R -- L:routing
-socket:R -- L:patch
-socket:R -- L:confidence
-socket:R -- L:lsp
-socket:R -- L:multimodal
-socket:R -- L:telemetry
-socket:R -- L:persistence
-
-routing:B -- T:ds13b
-routing:B -- T:phi
-routing:B -- T:qwen4b
-routing:B -- T:qwen9b
-routing:B -- T:cloud
-
-multimodal:B -- T:ocr
-multimodal:B -- T:vision
-multimodal:B -- T:embed
-multimodal:B -- T:rerank
-multimodal:B -- T:docs
+  class Z,CX,VS,CD,GM,OC editor
+  class GIT,FETCH,C7,AH_MCP mcp
+  class SOCK,SCH,SYM,DEP,IR,PP,CE,LSP,CR,TEL,PERS daemon
+  class DS,PHI,Q4,Q9,CLD model
+  class OCR,VIS,EMB,RNK,DOC multi
