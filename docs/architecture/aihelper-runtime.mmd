@@ -1,0 +1,82 @@
+architecture-beta
+
+group editors(cloud)[Editors]
+
+service zed(server)[Zed] in editors
+service codex(server)[Codex] in editors
+service vscode(server)[VSCode] in editors
+service claude(server)[Claude Desktop] in editors
+service gemini(server)[Gemini / Antigravity] in editors
+service opencode(server)[OpenCode] in editors
+
+group mcp(cloud)[Unified MCP]
+
+service git(database)[git] in mcp
+service fetch(database)[fetch] in mcp
+service context7(database)[context7] in mcp
+service aihelper(server)[aihelper MCP] in mcp
+
+group daemon(cloud)[aihelper Daemon]
+
+service socket(server)[Unix Socket Runtime] in daemon
+service scheduler(server)[Semantic Scheduler] in daemon
+service symbols(database)[Symbol Graph] in daemon
+service deps(database)[Dependency Graph] in daemon
+service routing(server)[Intent Router] in daemon
+service patch(server)[Patch Planner] in daemon
+service confidence(server)[Confidence Engine] in daemon
+service lsp(server)[LSP Bridge] in daemon
+service multimodal(server)[Capability Router] in daemon
+service telemetry(server)[Telemetry] in daemon
+service persistence(database)[RAM→SSD Cache] in daemon
+
+group models(cloud)[Models]
+
+service ds13b(server)[deepseek-coder:1.3b] in models
+service phi(server)[phi4-mini] in models
+service qwen4b(server)[qwen3.5:4b-16k] in models
+service qwen9b(server)[qwen3.5:9b] in models
+service cloud(server)[GPT / Claude / Gemini] in models
+
+group aux(cloud)[Multimodal Stack]
+
+service ocr(server)[PaddleOCR] in aux
+service vision(server)[minicpm-v] in aux
+service embed(server)[nomic + bge-m3] in aux
+service rerank(server)[CrossEncoder] in aux
+service docs(server)[Marp / Mermaid / DBML] in aux
+
+zed:R -- L:git
+codex:R -- L:git
+vscode:R -- L:git
+claude:R -- L:git
+gemini:R -- L:git
+opencode:R -- L:git
+
+git:B -- T:socket
+fetch:B -- T:socket
+context7:B -- T:socket
+aihelper:B -- T:socket
+
+socket:R -- L:scheduler
+socket:R -- L:symbols
+socket:R -- L:deps
+socket:R -- L:routing
+socket:R -- L:patch
+socket:R -- L:confidence
+socket:R -- L:lsp
+socket:R -- L:multimodal
+socket:R -- L:telemetry
+socket:R -- L:persistence
+
+routing:B -- T:ds13b
+routing:B -- T:phi
+routing:B -- T:qwen4b
+routing:B -- T:qwen9b
+routing:B -- T:cloud
+
+multimodal:B -- T:ocr
+multimodal:B -- T:vision
+multimodal:B -- T:embed
+multimodal:B -- T:rerank
+multimodal:B -- T:docs

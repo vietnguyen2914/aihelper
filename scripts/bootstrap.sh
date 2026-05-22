@@ -28,7 +28,7 @@ check_cmd python3 "Install: brew install python3"
 PYTHON_OK=false
 if command -v python3 &>/dev/null; then
     PY_VER=$(python3 --version 2>&1 | grep -oE '[0-9]+\.[0-9]+' | head -1)
-    if awk "BEGIN {exit !($PY_VER >= 3.9)}" 2>/dev/null; then
+    if [ "$(printf "%s\n3.9" "$PY_VER" | sort -t. -k1,1n -k2,2n | head -1)" = "3.9" ]; then
         echo -e "  ${GREEN}✅${NC} python3 ≥ 3.9 ($PY_VER)"
         PYTHON_OK=true
     else
@@ -62,7 +62,7 @@ if command -v ollama &>/dev/null; then
     MINIMAL_MODELS=(
         "deepseek-coder:1.3b"
         "phi4-mini:latest"
-        "qwen3.5:4b-16k"
+        "qwen3.5:4b-16k" # custom modelfile
     )
     # Full set adds multimodal + embeddings + vision
     FULL_MODELS=(
@@ -85,7 +85,14 @@ if command -v ollama &>/dev/null; then
         if ollama pull "$model" 2>/dev/null; then
             echo -e "    ${GREEN}✅${NC} ${model}"
         else
-            echo -e "    ${RED}❌${NC} ${model} — pull failed (will retry later)"
+            echo -e "    ${YELLOW}⚠️${NC} ${model} — not on hub, trying modelfile..."
+            if [ "$model" = "qwen3.5:4b-16k" ] && [ -f "$AIHELPER_DIR/configs/modelfiles/qwen3.5-4b-16k.Modelfile" ]; then
+                ollama create qwen3.5:4b-16k -f "$AIHELPER_DIR/configs/modelfiles/qwen3.5-4b-16k.Modelfile" 2>/dev/null && echo -e "    ${GREEN}✅${NC} ${model} created" || echo -e "    ${RED}❌${NC} ${model} — failed"
+            elif ollama pull "$model:latest" 2>/dev/null; then
+                echo -e "    ${GREEN}✅${NC} ${model} (latest tag)"
+            else
+                echo -e "    ${RED}❌${NC} ${model} — pull failed"
+            fi
         fi
     done
 else
