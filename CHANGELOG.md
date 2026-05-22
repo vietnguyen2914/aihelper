@@ -9,10 +9,7 @@ This project follows a lightweight release-note style. Dates use `YYYY-MM-DD`.
 ### Added
 
 - Contributor guide for focused workflow-driven pull requests.
-- Community launch and discussion docs.
-- Hacker News and Reddit launch drafts.
-- Testimonial collection guide for future public quotes.
-- Draft v0.6.0 release notes.
+- Release notes for v0.0.6.
 - Blog draft explaining semantic routing versus giant prompts.
 
 ### Changed
@@ -21,7 +18,7 @@ This project follows a lightweight release-note style. Dates use `YYYY-MM-DD`.
 - Demo workflow previews use a wider table layout for better GitHub readability.
 - OCR and diagnostics GIF demos were regenerated at a shorter, more readable size.
 
-## v0.6.0 - 2026-05-23
+## v0.0.6 - 2026-05-23
 
 ### Added
 
@@ -29,6 +26,7 @@ This project follows a lightweight release-note style. Dates use `YYYY-MM-DD`.
   PR template, funding metadata, installation docs, and workflow examples.
 - Architecture SVG plus runtime map.
 - Benchmark visuals for daemon latency, token reduction, and local model memory tiers.
+- Contributor guide and changelog.
 
 ### Highlights
 

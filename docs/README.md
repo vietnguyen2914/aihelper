@@ -41,13 +41,9 @@
 
 ## Community
 
-- [community/discussions.md](./community/discussions.md) — Suggested GitHub Discussions setup and first pinned topic
-- [community/launch-playbook.md](./community/launch-playbook.md) — Public launch messaging and content cadence
-- [community/hacker-news-post.md](./community/hacker-news-post.md) — Hacker News launch draft
-- [community/reddit-posts.md](./community/reddit-posts.md) — Reddit launch drafts
-- [community/testimonials.md](./community/testimonials.md) — Testimonial collection guide
-- [releases/v0.6.0.md](./releases/v0.6.0.md) — Release notes for v0.6.0
-- [blog/semantic-routing-vs-giant-prompts.md](./blog/semantic-routing-vs-giant-prompts.md) — Blog draft for the core positioning narrative
+- [../CONTRIBUTING.md](../CONTRIBUTING.md) — Contribution guide
+- [../CHANGELOG.md](../CHANGELOG.md) — Release history
+- [releases/v0.0.6.md](./releases/v0.0.6.md) — Release notes for v0.0.6
 
 ## Troubleshooting
 
