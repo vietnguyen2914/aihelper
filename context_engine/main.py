@@ -407,7 +407,7 @@ def main() -> int:
     cache_watch_parser.add_argument("--max-cycles", type=int, default=0)
     cache_watch_parser.add_argument("--json", "-json", action="store_true", default=False, help=argparse.SUPPRESS)
     cache_watch_all_parser = cache_subparsers.add_parser("watch-all")
-    cache_watch_all_parser.add_argument("--github-root", default="~/github")
+    cache_watch_all_parser.add_argument("--github-root", default="$HOME/github")
     cache_watch_all_parser.add_argument("--extra-project", action="append", default=[])
     cache_watch_all_parser.add_argument("--interval", type=float, default=2.0)
     cache_watch_all_parser.add_argument("--persist-interval", type=int, default=28800, help="Persist all caches to SSD every N seconds (default 300=5min, 0=disabled)")
@@ -418,7 +418,7 @@ def main() -> int:
     cache_persist_parser = cache_subparsers.add_parser("persist", help="Persist RAM-based cache to SSD.")
     cache_persist_parser.add_argument("--project-root", default=None)
     cache_persist_parser.add_argument("--all", action="store_true", help="Persist all known projects")
-    cache_persist_parser.add_argument("--github-root", default="~/github")
+    cache_persist_parser.add_argument("--github-root", default="$HOME/github")
     cache_persist_parser.add_argument("--json", "-json", action="store_true", default=False, help=argparse.SUPPRESS)
 
     cache_restore_parser = cache_subparsers.add_parser("restore", help="Restore persisted cache from SSD to RAM.")
@@ -628,7 +628,7 @@ def main() -> int:
 
     # ── Warmup ─────────────────────────────────────────────────────────
     warmup_parser = subparsers.add_parser("warmup", help="Pre-warm all project caches.")
-    warmup_parser.add_argument("--github-root", default="~/github")
+    warmup_parser.add_argument("--github-root", default=None)
     warmup_parser.add_argument("--extra-project", action="append", default=[])
     warmup_parser.add_argument("--json", "-json", action="store_true", default=False, help=argparse.SUPPRESS)
 

@@ -25,7 +25,7 @@ This KB is the kickoff document for a new project. It explains how to discover t
 ### Explicit target root
 
 ```bash
-AIHELPER_TARGET_ROOT=/opt/homebrew/var/www/his ~/github/aihelper/bin/aihelper "build project KB"
+AIHELPER_TARGET_ROOT=<legacy-project> ~/github/aihelper/bin/aihelper "build project KB"
 ```
 
 ### Prompt-only output
@@ -74,7 +74,7 @@ docs/
 
 ## Example Project Mapping
 
-For a legacy PHP project like `/opt/homebrew/var/www/his`, map the code into business groups instead of folder names:
+For a legacy PHP project like `<legacy-project>`, map the code into business groups instead of folder names:
 
 | Project Area | Likely Docs Home |
 |---|---|

@@ -454,7 +454,7 @@ def warm_project(project_root: Path) -> Dict[str, Any]:
     return {"project_root": str(project_root), "cache": cache_result.get("manifest", {}), "prompt_blocks": block_result.get("manifest", {})}
 
 
-def discover_project_roots(github_root: Path = Path("~/github"), extra_roots: List[Path] | None = None) -> List[Path]:
+def discover_project_roots(github_root: Path = Path.home() / "github", extra_roots: List[Path] | None = None) -> List[Path]:
     roots: List[Path] = []
     if github_root.exists():
         for git_dir in sorted(github_root.glob("*/.git")):
@@ -529,7 +529,7 @@ def watch_cache(project_root: Path, interval: float = 2.0, once: bool = False, m
 
 
 def watch_all_projects(
-    github_root: Path = Path("~/github"),
+    github_root: Path = Path.home() / "github",
     extra_roots: List[Path] | None = None,
     interval: float = 2.0,
     once: bool = False,
