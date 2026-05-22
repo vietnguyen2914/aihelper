@@ -1,0 +1,6 @@
+# aihelper core — no external dependencies required
+# All functionality uses Python stdlib
+# Optional extras:
+# sentence-transformers   # For reranker (bge-reranker-v2-m3)
+# docling                # For document parsing
+# paddleocr              # For OCR
