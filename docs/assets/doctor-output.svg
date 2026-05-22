@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="420" viewBox="0 0 980 420" role="img" aria-labelledby="title desc">
+  <title id="title">aihelper doctor output screenshot</title>
+  <desc id="desc">Terminal-style diagnostic output showing healthy aihelper subsystems.</desc>
+  <rect width="980" height="420" rx="18" fill="#0f172a"/>
+  <rect x="0" y="0" width="980" height="42" rx="18" fill="#111827"/>
+  <circle cx="26" cy="22" r="7" fill="#ef4444"/>
+  <circle cx="50" cy="22" r="7" fill="#f59e0b"/>
+  <circle cx="74" cy="22" r="7" fill="#22c55e"/>
+  <text x="105" y="27" fill="#cbd5e1" font-family="SFMono-Regular, Menlo, Consolas, monospace" font-size="14">aihelper doctor</text>
+  <text x="34" y="84" fill="#93c5fd" font-family="SFMono-Regular, Menlo, Consolas, monospace" font-size="18">$ ./bin/aihelper doctor</text>
+  <text x="34" y="126" fill="#e5e7eb" font-family="SFMono-Regular, Menlo, Consolas, monospace" font-size="18">AIHELPER DIAGNOSTICS</text>
+  <text x="34" y="168" fill="#86efac" font-family="SFMono-Regular, Menlo, Consolas, monospace" font-size="16">OK  Python 3.9+ runtime</text>
+  <text x="34" y="202" fill="#86efac" font-family="SFMono-Regular, Menlo, Consolas, monospace" font-size="16">OK  Cache manifest fresh: 99 files, 439 symbols</text>
+  <text x="34" y="236" fill="#86efac" font-family="SFMono-Regular, Menlo, Consolas, monospace" font-size="16">OK  Daemon socket reachable: ~/.aihelper/aihelper.sock</text>
+  <text x="34" y="270" fill="#86efac" font-family="SFMono-Regular, Menlo, Consolas, monospace" font-size="16">OK  Watchman optional integration detected</text>
+  <text x="34" y="304" fill="#fde68a" font-family="SFMono-Regular, Menlo, Consolas, monospace" font-size="16">WARN Ollama optional: local models enhance, but are not required</text>
+  <text x="34" y="352" fill="#bfdbfe" font-family="SFMono-Regular, Menlo, Consolas, monospace" font-size="16">Ready: route, context, symbol lookup, diagnostics, patch planning</text>
+</svg>

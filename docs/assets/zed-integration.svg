@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="460" viewBox="0 0 980 460" role="img" aria-labelledby="title desc">
+  <title id="title">Zed MCP integration screenshot</title>
+  <desc id="desc">Editor settings screenshot showing aihelper configured as an MCP server in Zed.</desc>
+  <rect width="980" height="460" rx="18" fill="#0f172a"/>
+  <rect x="28" y="28" width="924" height="404" rx="12" fill="#111827" stroke="#334155"/>
+  <rect x="28" y="28" width="210" height="404" rx="12" fill="#0b1220"/>
+  <text x="54" y="72" fill="#f8fafc" font-family="Inter, Arial, sans-serif" font-size="22" font-weight="700">Zed</text>
+  <text x="54" y="116" fill="#94a3b8" font-family="Inter, Arial, sans-serif" font-size="15">settings.json</text>
+  <text x="54" y="158" fill="#60a5fa" font-family="Inter, Arial, sans-serif" font-size="15">MCP Servers</text>
+  <text x="54" y="194" fill="#94a3b8" font-family="Inter, Arial, sans-serif" font-size="15">Editor Context</text>
+  <text x="54" y="230" fill="#94a3b8" font-family="Inter, Arial, sans-serif" font-size="15">Symbols</text>
+  <text x="272" y="74" fill="#cbd5e1" font-family="SFMono-Regular, Menlo, Consolas, monospace" font-size="16">{</text>
+  <text x="298" y="110" fill="#93c5fd" font-family="SFMono-Regular, Menlo, Consolas, monospace" font-size="16">"context_servers"</text>
+  <text x="462" y="110" fill="#cbd5e1" font-family="SFMono-Regular, Menlo, Consolas, monospace" font-size="16">: {</text>
+  <text x="326" y="146" fill="#86efac" font-family="SFMono-Regular, Menlo, Consolas, monospace" font-size="16">"aihelper"</text>
+  <text x="440" y="146" fill="#cbd5e1" font-family="SFMono-Regular, Menlo, Consolas, monospace" font-size="16">: {</text>
+  <text x="354" y="182" fill="#93c5fd" font-family="SFMono-Regular, Menlo, Consolas, monospace" font-size="16">"command"</text>
+  <text x="470" y="182" fill="#cbd5e1" font-family="SFMono-Regular, Menlo, Consolas, monospace" font-size="16">: "~/github/aihelper/bin/aihelper-mcp"</text>
+  <text x="354" y="218" fill="#93c5fd" font-family="SFMono-Regular, Menlo, Consolas, monospace" font-size="16">"args"</text>
+  <text x="426" y="218" fill="#cbd5e1" font-family="SFMono-Regular, Menlo, Consolas, monospace" font-size="16">: ["--daemon"]</text>
+  <text x="326" y="254" fill="#cbd5e1" font-family="SFMono-Regular, Menlo, Consolas, monospace" font-size="16">}</text>
+  <text x="298" y="290" fill="#cbd5e1" font-family="SFMono-Regular, Menlo, Consolas, monospace" font-size="16">}</text>
+  <text x="272" y="326" fill="#cbd5e1" font-family="SFMono-Regular, Menlo, Consolas, monospace" font-size="16">}</text>
+  <rect x="272" y="360" width="632" height="38" rx="8" fill="#052e16"/>
+  <text x="294" y="385" fill="#bbf7d0" font-family="Inter, Arial, sans-serif" font-size="15">Unified MCP: route, context, symbols, diagnostics, patch planning</text>
+</svg>

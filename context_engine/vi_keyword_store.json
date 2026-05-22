@@ -1,4 +1,9 @@
 {
-  "mapping": {},
-  "count": {}
+  "mapping": {
+    "and": "context"
+  },
+  "count": {
+    "for": 2,
+    "and": 3
+  }
 }
