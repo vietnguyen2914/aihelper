@@ -15,6 +15,8 @@ Usage:
   aihelper feedback "<prompt>" --intent "<intent>" [--features ...] [--accepted] [--rating N] [--notes "..."]
   aihelper feedback-summary
   aihelper rebuild-index
+  aihelper ollama health
+  aihelper ollama prewarm [--model-type tiny|medium|large]
 
 Examples:
   aihelper "trace upload flow"
@@ -23,6 +25,8 @@ Examples:
   aihelper feedback "trace upload flow" --intent upload_flow --features ingestion tracing
   aihelper feedback-summary
   aihelper rebuild-index
+  aihelper ollama health
+  aihelper ollama prewarm --model-type medium
 
 Notes:
   - If no command is given, this guide is shown.
@@ -95,7 +99,7 @@ case "$1" in
     print_guide
     exit 0
     ;;
-  analyze|feedback|feedback-summary|feedback_summary|rebuild-index|rebuild_index)
+  analyze|feedback|feedback-summary|feedback_summary|rebuild-index|rebuild_index|ollama)
     case "$1" in
       rebuild_index) set -- rebuild-index "${@:2}" ;;
       feedback_summary) set -- feedback-summary "${@:2}" ;;

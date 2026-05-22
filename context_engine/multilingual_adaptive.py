@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import unicodedata
 from functools import lru_cache
@@ -18,6 +19,7 @@ except ImportError:
 _WORD_RE = re.compile(r"[0-9A-Za-zÀ-ỹ_]+", re.UNICODE)
 _MAX_LEARNED_ENTRIES = 100
 _LEARN_THRESHOLD = 3
+LLM_NORMALIZE = os.environ.get("AIHELPER_LLM_NORMALIZE", "0").lower() in {"1", "true", "yes", "on"}
 _TOKEN_PRIORITY = [
     "error",
     "timeout",
@@ -187,6 +189,11 @@ def _normalize_prompt_cached(prompt: str) -> str:
     if not prompt or not prompt.strip():
         return ""
 
+    fallback = _rule_normalize_prompt(prompt)
+    if not LLM_NORMALIZE:
+        merged = _merge_normalized_outputs("", fallback)
+        return merged or fallback
+
     llm_prompt = (
         "Normalize this user prompt into short English keywords.\n"
         "Rules:\n"
@@ -200,7 +207,6 @@ def _normalize_prompt_cached(prompt: str) -> str:
         f"Input: {prompt}"
     )
     response, ok = call_ollama(llm_prompt, model_type="tiny")
-    fallback = _rule_normalize_prompt(prompt)
     if ok and isinstance(response, str):
         normalized = _parse_normalized_response(response)
         if normalized:

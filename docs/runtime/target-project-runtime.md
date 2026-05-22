@@ -39,3 +39,46 @@ By default, the helper prints structured Markdown instead of JSON.
 ## Ollama fallback
 
 If Ollama is not available locally, the helper prints a ready-to-paste discovery prompt instead of failing. You can paste that prompt into GPT or Claude and use their output to continue the discovery step manually.
+
+## Local Cost / Speed Defaults
+
+For normal Codex usage, keep aihelper as a fast context router:
+
+```bash
+/Users/vietnguyen/github/aihelper/bin/aihelper analyze "trace upload flow" --format prompt --max-context-chars 6000
+```
+
+Default local model roles:
+
+| Role | Model | Use |
+|---|---|---|
+| `tiny` | `deepseek-coder:1.3b` | very small code-oriented checks and warmup |
+| `medium` | `qwen2.5:3b` | default unknown-feature discovery |
+| `large` | `qwen3.5:4b` | heavier local reasoning when still practical |
+
+Avoid `qwen3.5:9b`, `sorc/qwen3.5-claude-4.6-opus:latest`, and `qwen3.6:35b-a3b` for interactive loops on this Mac unless quality matters more than latency.
+
+Check and prewarm:
+
+```bash
+/Users/vietnguyen/github/aihelper/bin/aihelper ollama health
+/Users/vietnguyen/github/aihelper/bin/aihelper ollama prewarm --model-type medium
+```
+
+The fast path does not call Ollama for every keyword normalization. Set these only for experiments:
+
+```bash
+AIHELPER_LLM_NORMALIZE=1
+AIHELPER_LLM_INTENT=1
+```
+
+Recommended Ollama LaunchAgent runtime on Apple Silicon:
+
+```text
+OLLAMA_HOST=127.0.0.1:11434
+OLLAMA_FLASH_ATTENTION=1
+OLLAMA_KV_CACHE_TYPE=q8_0
+OLLAMA_MAX_LOADED_MODELS=1
+OLLAMA_NUM_PARALLEL=1
+OLLAMA_KEEP_ALIVE=30m
+```

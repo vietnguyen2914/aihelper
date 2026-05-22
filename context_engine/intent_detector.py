@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -12,6 +13,9 @@ except ImportError:
     from common import default_intent_config_path, project_root, safe_load_json, tokenize
     from multilingual_adaptive import normalize_prompt
     from ollama_fallback import call_ollama
+
+
+LLM_INTENT = os.environ.get("AIHELPER_LLM_INTENT", "0").lower() in {"1", "true", "yes", "on"}
 
 
 def _intent_config(root: Path | None = None) -> List[Dict[str, Any]]:
@@ -78,7 +82,7 @@ def detect_intent(user_prompt: str, root: Path | None = None) -> Dict[str, Any]:
     normalized_prompt = normalize_prompt(user_prompt, root=root)
     prompt_tokens = set(tokenize(normalized_prompt))
     learned_keywords = _learned_intent_keywords(root)
-    model_hint = _classify_intent_with_ollama(user_prompt, intents, root=root)
+    model_hint = _classify_intent_with_ollama(user_prompt, intents, root=root) if LLM_INTENT else None
 
     ranked: List[Dict[str, Any]] = []
     for intent in intents:
