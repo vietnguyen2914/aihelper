@@ -357,6 +357,58 @@ def analyze_request(
     return attach_route_hints(result, route)
 
 
+
+def doctor() -> Dict[str, Any]:
+    """Run diagnostic checks on the aihelper installation."""
+    import shutil, subprocess, socket, json, time
+    from pathlib import Path
+    
+    results = {}
+    all_ok = True
+    
+    def check(name: str, fn, critical: bool = False) -> None:
+        nonlocal all_ok
+        try:
+            ok = fn()
+            results[name] = {"status": "ok" if ok else "fail", "critical": critical}
+            if not ok: all_ok = False
+        except Exception as e:
+            results[name] = {"status": "error", "message": str(e)[:100], "critical": critical}
+            all_ok = False
+    
+    check("python3", lambda: bool(shutil.which("python3")))
+    check("git", lambda: bool(shutil.which("git")))
+    check("watchman", lambda: bool(shutil.which("watchman")), critical=False)
+    check("ollama", lambda: bool(shutil.which("ollama")), critical=False)
+    check("socket_dir", lambda: Path.home().joinpath(".aihelper").exists())
+    
+    # Daemon check
+    sock_path = Path.home() / ".aihelper" / "aihelper.sock"
+    check("daemon_socket", lambda: sock_path.exists())
+    if sock_path.exists():
+        try:
+            sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            sock.settimeout(1)
+            sock.connect(str(sock_path))
+            sock.sendall(json.dumps({"method": "health", "params": {}, "id": 1}).encode() + b"\n")
+            resp = sock.recv(4096)
+            data = json.loads(resp.decode())
+            sock.close()
+            results["daemon_health"] = {"status": "ok" if data.get("result",{}).get("status") == "ok" else "degraded"}
+        except Exception as e:
+            results["daemon_health"] = {"status": "error", "message": str(e)[:100]}
+    
+    # Cache check
+    check("cache_writable", lambda: (Path.cwd() / ".ai-cache" / "aihelper" / "manifest.json").parent.exists(), critical=False)
+    
+    # MCP server check
+    mcp_path = Path(__file__).parent / "mcp_server.py"
+    check("mcp_server", lambda: mcp_path.exists())
+    
+    results["overall"] = "ok" if all_ok else "issues_found"
+    return results
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Portable AI helper that reads the current project's ai indexes and returns feature-aware execution context."
@@ -501,6 +553,10 @@ def main() -> int:
     ollama_prewarm_parser.add_argument("--model-type", choices=("tiny", "medium", "large"), default="medium")
     ollama_prewarm_parser.add_argument("--json", "-json", action="store_true", default=False, help=argparse.SUPPRESS)
 
+    # ── Doctor ────────────────────────────────────────────────────────
+    doctor_parser = subparsers.add_parser("doctor", help="Run diagnostic checks on the installation.")
+    doctor_parser.add_argument("--json", "-json", action="store_true", default=False, help=argparse.SUPPRESS)
+
     # ── Daemon ─────────────────────────────────────────────────────────
     daemon_parser = subparsers.add_parser("daemon", help="Manage the aihelper persistent daemon.")
     daemon_subparsers = daemon_parser.add_subparsers(dest="daemon_command")
@@ -636,6 +692,7 @@ def main() -> int:
     known_commands = {
         "analyze",
         "daemon",
+        "doctor",
         "editor-context",
         "editor_context",
         "lsp",
@@ -998,6 +1055,25 @@ def main() -> int:
             print(json.dumps(result, indent=2, ensure_ascii=False))
         else:
             print(render_markdown("Validate Files", result))
+        return 0
+
+    if argv[0] == "doctor":
+        args = doctor_parser.parse_args(argv[1:])
+        result = doctor()
+        if bool(args.json):
+            print(json.dumps(result, indent=2, ensure_ascii=False))
+        else:
+            lines = ["# aihelper Doctor"]
+            for name, info in result.items():
+                if isinstance(info, dict):
+                    st = info.get("status", "unknown")
+                else:
+                    st = str(info)
+                icon = {"ok": "✅", "fail": "❌", "error": "⚠️"}.get(st, "❓")
+                lines.append(f"- **{name}**: {icon} {st}")
+                if isinstance(info, dict) and info.get("message"):
+                    lines.append(f"  - _{info['message']}_")
+            print("\n".join(lines))
         return 0
 
     if argv[0] == "ollama":

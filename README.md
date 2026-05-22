@@ -128,6 +128,13 @@ python3 context_engine/mcp_server.py
 
 ---
 
+## Examples
+
+See [docs/examples/](./docs/examples/):
+- [Fix PHP Bug](./docs/examples/fix-php-bug.md) — Semantic routing + patch planning
+- [Generate Presentation](./docs/examples/generate-presentation.md) — Mermaid → Marp → PPTX
+- [Parse Screenshot](./docs/examples/parse-screenshot.md) — Vision + OCR
+
 ## Commands
 
 ### Cache
