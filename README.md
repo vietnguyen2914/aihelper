@@ -9,6 +9,25 @@ Built for editors, agents, and local-first coding workflows.
 
 ---
 
+## Why aihelper exists
+
+Most AI coding tools rely on **giant prompts**, **heavy filesystem scans**,
+and **opaque orchestration**. Results: slow agents, token waste, hallucinated edits.
+
+aihelper takes a different approach:
+- **Semantic routing** — route by coding intent, not file path
+- **Compact context** — 95%+ token reduction vs full repo scans
+- **Daemonized hot runtime** — 0.3ms IPC instead of 163ms Python startup
+- **Patch-first editing** — unified diffs with confidence scoring
+- **Local-first models** — 3 hot tiers, 2 medium fallbacks, no cloud dependency
+- **Multimodal capability routing** — vision, OCR, embeddings, reranker, documents
+
+This is not "one more AI tool." This is a **semantic operating layer** for AI-assisted development.
+
+---
+
+---
+
 ## Why aihelper?
 
 Most AI coding tools do **full repo scans + giant prompts** → slow, token-heavy, inaccurate.
@@ -241,3 +260,21 @@ aihelper Daemon (Unix socket, 47 handlers)
 ## License
 
 MIT
+
+---
+
+## Roadmap
+
+See [ROADMAP.md](ROADMAP.md) for project direction, completed phases, and future plans.
+
+---
+
+## Support
+
+If aihelper improves your AI-assisted development workflow, consider supporting the project:
+- ⭐ Star the repo on GitHub
+- 🐛 Report issues and suggest features
+- ☕ [Buy me a coffee](https://ko-fi.com/vietnguyen2914)
+- 💼 [GitHub Sponsors](https://github.com/sponsors/vietnguyen2914)
+
+Your support helps fund low-latency semantic tooling, local-first AI workflows, multimodal integrations, and OSS maintenance.
