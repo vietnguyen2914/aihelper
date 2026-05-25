@@ -7,8 +7,9 @@
 - [Platform Guides](#platform-guides)
   - [Apple Silicon (macOS)](#apple-silicon-macos)
   - [Linux](#linux)
+  - [Windows](#windows)
 - [Editor Integration](#editor-integration)
-- [Daemon & LaunchAgent](#daemon--launchagent)
+- [Daemon & Local IPC](#daemon--local-ipc)
 - [Performance Tuning](#performance-tuning)
 - [Troubleshooting](#troubleshooting)
 - [Uninstall](#uninstall)
@@ -40,7 +41,7 @@ aihelper route "fix bug"
 | Requirement | Minimum | Recommended |
 |-------------|---------|-------------|
 | Python | 3.9+ | 3.11+ |
-| OS | macOS 13+ / Linux | macOS 14+ |
+| OS | macOS 13+ / Linux / Windows 11 | macOS 14+ / Ubuntu 22.04+ / Windows 11 |
 | RAM | 8GB | 16GB+ |
 | Disk | 500MB | 10GB (with models) |
 | Git | 2.30+ | latest |
@@ -207,6 +208,49 @@ systemctl --user enable aihelper-daemon.service
 systemctl --user start aihelper-daemon.service
 ```
 
+### Windows
+
+Tested target: Windows 11 with PowerShell 7+ or Windows PowerShell 5.1.
+
+aihelper keeps Unix sockets on macOS/Linux. On Windows, the daemon automatically
+uses a local-only TCP loopback endpoint and writes connection metadata under
+`%USERPROFILE%\.aihelper`.
+
+```powershell
+# 1. Install dependencies
+winget install Python.Python.3.12
+winget install Git.Git
+
+# Optional: install Ollama for Windows
+# https://ollama.com/download/windows
+
+# 2. Clone + bootstrap
+git clone https://github.com/vietnguyen2914/aihelper.git
+cd aihelper
+powershell -ExecutionPolicy Bypass -File scripts/bootstrap.ps1
+
+# 3. Use on any project
+cd C:\path\to\your\project
+<path-to-aihelper>\bin\aihelper.ps1 cache build
+<path-to-aihelper>\bin\aihelper.ps1 route "fix bug"
+```
+
+CMD is also supported:
+
+```cmd
+bin\aihelper.cmd doctor
+bin\aihelper.cmd daemon start
+bin\aihelper.cmd route "fix bug"
+```
+
+**Windows daemon notes:**
+
+- Transport: `127.0.0.1` TCP loopback, not exposed externally.
+- Endpoint metadata: `%USERPROFILE%\.aihelper\aihelper.tcp.json`.
+- PID file: `%USERPROFILE%\.aihelper\aihelperd.pid`.
+- Logs: `%USERPROFILE%\.aihelper\daemon.log`.
+- Auto-start: manual daemon start is supported first; Scheduled Task support is planned after native Windows smoke testing.
+
 ---
 
 ## Editor Integration
@@ -273,15 +317,23 @@ Add to extension's MCP config:
 
 ---
 
-## Daemon & LaunchAgent
+## Daemon & Local IPC
 
 ### Manual daemon control
 
 ```bash
-aihelper daemon start    # Start persistent daemon (~0.3ms IPC)
+aihelper daemon start    # Start persistent daemon
 aihelper daemon status   # Health check
 aihelper daemon stop     # Graceful shutdown
 ```
+
+Transport is selected automatically:
+
+| Platform | Transport |
+|---|---|
+| macOS | Unix socket at `~/.aihelper/aihelper.sock` |
+| Linux | Unix socket at `~/.aihelper/aihelper.sock` |
+| Windows | TCP loopback endpoint stored in `%USERPROFILE%\.aihelper\aihelper.tcp.json` |
 
 ### macOS auto-start (LaunchAgent)
 
@@ -309,6 +361,18 @@ launchctl list | grep aihelper
 ### Linux auto-start (systemd)
 
 See [Linux section](#linux) above for systemd service setup.
+
+### Windows auto-start
+
+Use manual daemon start for the first Windows release:
+
+```powershell
+.\bin\aihelper.ps1 daemon start
+.\bin\aihelper.ps1 daemon status
+```
+
+Scheduled Task installation will be added after Windows smoke testing confirms
+path, Python launcher, and PowerShell execution-policy behavior across machines.
 
 ---
 
@@ -407,6 +471,8 @@ aihelper health
 | `doctor` shows failures | Installation incomplete | Run `bash scripts/bootstrap.sh` |
 | LaunchAgent not loading | Path mismatch | Edit `~/Library/LaunchAgents/com.aihelper.daemon.plist` to fix paths |
 | `ollama` command not found after install | PATH issue | `export PATH=/opt/homebrew/bin:$PATH` (Apple Silicon) |
+| PowerShell blocks bootstrap | Execution policy | Run `powershell -ExecutionPolicy Bypass -File scripts/bootstrap.ps1` |
+| Windows firewall prompt | First daemon TCP loopback bind | Allow local/private loopback access only |
 
 ### Diagnostic commands
 
@@ -420,6 +486,9 @@ cat ~/.aihelper/daemon.log
 # LaunchAgent logs
 cat ~/.aihelper/logs/launchd.stdout.log
 cat ~/.aihelper/logs/launchd.stderr.log
+
+# Windows daemon logs
+Get-Content "$HOME\.aihelper\daemon.log"
 
 # Subsystem health
 aihelper health
@@ -451,7 +520,10 @@ systemctl --user stop aihelper-daemon.service 2>/dev/null
 systemctl --user disable aihelper-daemon.service 2>/dev/null
 rm -f ~/.config/systemd/user/aihelper-daemon.service
 
-# 6. Remove Ollama models (optional)
+# 6. Windows cleanup (PowerShell)
+Remove-Item -Recurse -Force "$HOME\.aihelper" -ErrorAction SilentlyContinue
+
+# 7. Remove Ollama models (optional)
 ollama rm deepseek-coder:1.3b phi4-mini:latest qwen3.5:4b-16k minicpm-v:latest nomic-embed-text:latest bge-m3:latest
 ```
 

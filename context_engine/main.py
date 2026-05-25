@@ -361,9 +361,9 @@ def analyze_request(
 def doctor() -> Dict[str, Any]:
     """Run diagnostic checks on the aihelper installation.
 
-    Checks: daemon, socket, watchman, ollama, models, cache, ramdisk, permissions.
+    Checks: daemon, local IPC endpoint, watchman, ollama, models, cache, ramdisk, permissions.
     """
-    import os, shutil, subprocess, socket, json, time
+    import os, platform, shutil, subprocess
     from pathlib import Path
 
     results = {}
@@ -384,22 +384,22 @@ def doctor() -> Dict[str, Any]:
     check("watchman", lambda: bool(shutil.which("watchman")), critical=False)
     check("ollama", lambda: bool(shutil.which("ollama")), critical=False)
     check("socket_dir", lambda: Path.home().joinpath(".aihelper").exists())
+    results["platform"] = {"status": "ok", "name": platform.system() or os.name}
 
     # ── Daemon check ────────────────────────────────────────────────
-    sock_path = Path.home() / ".aihelper" / "aihelper.sock"
-    check("daemon_socket", lambda: sock_path.exists())
-    if sock_path.exists():
-        try:
-            sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-            sock.settimeout(1)
-            sock.connect(str(sock_path))
-            sock.sendall(json.dumps({"method": "health", "params": {}, "id": 1}).encode() + b"\n")
-            resp = sock.recv(4096)
-            data = json.loads(resp.decode())
-            sock.close()
-            results["daemon_health"] = {"status": "ok" if data.get("result",{}).get("status") == "ok" else "degraded"}
-        except Exception as e:
-            results["daemon_health"] = {"status": "error", "message": str(e)[:100]}
+    status = daemon_status()
+    endpoint_exists = bool(status.get("tcp_endpoint_exists") if status.get("transport") == "tcp" else status.get("socket_exists"))
+    results["daemon_endpoint"] = {
+        "status": "ok" if endpoint_exists else "fail",
+        "transport": status.get("transport"),
+        "socket": status.get("socket"),
+        "tcp_endpoint": status.get("tcp_endpoint"),
+    }
+    results["daemon_health"] = {
+        "status": "ok" if status.get("running") else "fail",
+        "transport": status.get("transport"),
+        "pid": status.get("pid"),
+    }
 
     # ── Cache check ─────────────────────────────────────────────────
     check("cache_writable", lambda: (Path.cwd() / ".ai-cache" / "aihelper" / "manifest.json").parent.exists(), critical=False)
@@ -453,8 +453,9 @@ def doctor() -> Dict[str, Any]:
         aihelper_home = Path.home() / ".aihelper"
         if not aihelper_home.exists():
             return False
-        # Socket should be readable/writable
-        if sock_path.exists():
+        # Unix socket should be owner-only when present. Windows uses TCP loopback.
+        sock_path = Path.home() / ".aihelper" / "aihelper.sock"
+        if platform.system() != "Windows" and sock_path.exists():
             mode = sock_path.stat().st_mode
             # Should be 0o600 (owner only)
             if mode & 0o077:  # group/other have some access

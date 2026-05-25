@@ -14,7 +14,10 @@ Provides unified diagnostic view for AI consumption.
 from __future__ import annotations
 
 import json
+import shutil
 import subprocess
+import sys
+import tempfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -50,7 +53,7 @@ def collect_diagnostics(file_path: str, project_root: Path) -> Dict[str, Any]:
     elif suffix == ".py":
         sources.append("py_compile")
         result = subprocess.run(
-            ["python3", "-m", "py_compile", str(full_path)],
+            [sys.executable, "-m", "py_compile", str(full_path)],
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
         )
         if result.returncode != 0:
@@ -77,13 +80,11 @@ def collect_diagnostics(file_path: str, project_root: Path) -> Dict[str, Any]:
 
     # ── JavaScript/TypeScript: ESLint (if available) ─────────
     elif suffix in (".js", ".jsx", ".ts", ".tsx"):
-        eslint = subprocess.run(
-            ["which", "eslint"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True,
-        )
-        if eslint.returncode == 0:
+        eslint_path = shutil.which("eslint")
+        if eslint_path:
             sources.append("eslint")
             result = subprocess.run(
-                ["eslint", "--format", "json", str(full_path)],
+                [eslint_path, "--format", "json", str(full_path)],
                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
             )
             try:
@@ -104,30 +105,54 @@ def collect_diagnostics(file_path: str, project_root: Path) -> Dict[str, Any]:
 
     # ── Shell: bash -n ───────────────────────────────────────
     elif suffix == ".sh":
-        sources.append("bash_syntax")
-        result = subprocess.run(
-            ["bash", "-n", str(full_path)],
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
-        )
-        if result.returncode != 0:
-            diagnostics.append({
-                "source": "bash_syntax",
-                "severity": "error",
-                "message": result.stderr.strip()[:500],
-                "file": file_path,
-            })
+        bash_path = shutil.which("bash")
+        if bash_path:
+            sources.append("bash_syntax")
+            result = subprocess.run(
+                [bash_path, "-n", str(full_path)],
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+            )
+            if result.returncode != 0:
+                diagnostics.append({
+                    "source": "bash_syntax",
+                    "severity": "error",
+                    "message": result.stderr.strip()[:500],
+                    "file": file_path,
+                })
+
+    # ── PowerShell: parse check ──────────────────────────────
+    elif suffix == ".ps1":
+        pwsh_path = shutil.which("pwsh") or shutil.which("powershell")
+        if pwsh_path:
+            sources.append("powershell_parse")
+            ps_path = str(full_path).replace("'", "''")
+            command = (
+                "$errors=$null; "
+                f"[System.Management.Automation.PSParser]::Tokenize((Get-Content -Raw -LiteralPath '{ps_path}'), [ref]$errors) | Out-Null; "
+                "if ($errors) { $errors | ForEach-Object { $_.Message }; exit 1 }"
+            )
+            result = subprocess.run(
+                [pwsh_path, "-NoProfile", "-Command", command],
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+            )
+            if result.returncode != 0:
+                diagnostics.append({
+                    "source": "powershell_parse",
+                    "severity": "error",
+                    "message": (result.stdout or result.stderr).strip()[:500],
+                    "file": file_path,
+                })
 
     # ── Java: javac (if available) ───────────────────────────
     elif suffix == ".java":
-        javac = subprocess.run(
-            ["which", "javac"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True,
-        )
-        if javac.returncode == 0:
+        javac_path = shutil.which("javac")
+        if javac_path:
             sources.append("javac")
-            result = subprocess.run(
-                ["javac", "-d", "/tmp", str(full_path)],
-                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
-            )
+            with tempfile.TemporaryDirectory() as out_dir:
+                result = subprocess.run(
+                    [javac_path, "-d", out_dir, str(full_path)],
+                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                )
             if result.returncode != 0:
                 for line in result.stdout.splitlines():
                     if "error" in line.lower():

@@ -8,6 +8,10 @@ This project follows a lightweight release-note style. Dates use `YYYY-MM-DD`.
 
 ### Added
 
+- Windows support foundation: PowerShell/CMD launchers, PowerShell bootstrap,
+  Windows CI smoke job, and Windows install docs.
+- Portable daemon IPC: Unix sockets remain on macOS/Linux; Windows uses an
+  auto-detected TCP loopback endpoint.
 - Contributor guide for focused workflow-driven pull requests.
 - Release notes for v0.0.6.
 - Blog draft explaining semantic routing versus giant prompts.
@@ -17,6 +21,7 @@ This project follows a lightweight release-note style. Dates use `YYYY-MM-DD`.
 - README positioning now leads with the "Stop sending giant prompts" narrative.
 - Demo workflow previews use a wider table layout for better GitHub readability.
 - OCR and diagnostics GIF demos were regenerated at a shorter, more readable size.
+- Diagnostics and document-pipeline temp paths are more portable across platforms.
 
 ## v0.0.6 - 2026-05-23
 

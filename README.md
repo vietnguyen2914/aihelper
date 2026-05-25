@@ -1,7 +1,7 @@
 # aihelper — AI-native development runtime
 
 [![Python](https://img.shields.io/badge/python-3.9%2B-blue)]()
-[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey)]()
+[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey)]()
 [![License](https://img.shields.io/badge/license-MIT-green)]()
 [![GitHub stars](https://img.shields.io/github/stars/vietnguyen2914/aihelper?style=social)](https://github.com/vietnguyen2914/aihelper/stargazers)
 [![GitHub issues](https://img.shields.io/github/issues/vietnguyen2914/aihelper)](https://github.com/vietnguyen2914/aihelper/issues)
@@ -87,7 +87,7 @@ aihelper route "fix payment bug"
 
 > **No Ollama? No problem.** aihelper works without local models — core features (routing, context, symbols, diagnostics, patch planning) are model-free. Models enhance capability but are **optional**.
 
-> **Minimal footprint:** Python 3.9+, macOS/Linux, ~15GB disk for full model stack.  
+> **Minimal footprint:** Python 3.9+, macOS/Linux/Windows, ~15GB disk for full model stack.  
 > **Cloud-only mode:** Use aihelper purely as a context orchestrator with your preferred cloud model.
 
 ---
@@ -218,7 +218,8 @@ aihelper telemetry                                # Daemon metrics
 ## Features
 
 ### 🔥 Daemon (Zero Latency)
-- Persistent Unix socket (`~/.aihelper/aihelper.sock`), 49 method handlers in-memory
+- Persistent local IPC: Unix socket on macOS/Linux, TCP loopback on Windows
+- 49 method handlers in-memory
 - Auto-fallback to direct Python if daemon unavailable
 
 ### 🧠 Semantic Indexing
@@ -279,7 +280,7 @@ Editor (Zed / Codex / VSCode / Gemini / Claude / OpenCode)
     ↓
 Unified MCP (git, fetch, context7, aihelper)
     ↓
-aihelper Daemon (Unix socket, 49 handlers)
+aihelper Daemon (Unix socket on macOS/Linux, TCP loopback on Windows)
     ├── Semantic Scheduler
     ├── Symbol / Dependency Graph
     ├── Patch Planner + Confidence Engine
@@ -296,7 +297,7 @@ aihelper Daemon (Unix socket, 49 handlers)
 
 ## Requirements
 
-- **Minimal:** Python 3.9+, macOS/Linux, ~15GB disk for full model stack
+- **Minimal:** Python 3.9+, macOS/Linux/Windows, ~15GB disk for full model stack
 - **Optional:** Watchman (cache watching), Ollama (local models), Pandoc/LibreOffice (document export)
 
 ---

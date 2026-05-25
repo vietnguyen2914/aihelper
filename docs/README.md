@@ -2,7 +2,7 @@
 
 ## Getting Started
 
-- [INSTALLATION.md](./INSTALLATION.md) — Setup, prerequisites, editor integration (Apple Silicon, Linux, minimal/full)
+- [INSTALLATION.md](./INSTALLATION.md) — Setup, prerequisites, editor integration (macOS, Linux, Windows)
 - [README.md](../README.md) — Overview, features, benchmarks, commands
 - [CONTRIBUTING.md](../CONTRIBUTING.md) — How to report issues and contribute workflow-focused improvements
 - [CHANGELOG.md](../CHANGELOG.md) — Release history and upcoming changes

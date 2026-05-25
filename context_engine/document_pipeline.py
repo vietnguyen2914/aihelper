@@ -347,7 +347,7 @@ def handle_generate_mermaid(params: Dict[str, Any]) -> Dict[str, Any]:
 def handle_render_diagram(params: Dict[str, Any]) -> Dict[str, Any]:
     return render_mermaid(
         params.get("diagram_text", ""),
-        params.get("output_path", "/tmp/diagram.png"),
+        params.get("output_path", str(Path(tempfile.gettempdir()) / "diagram.png")),
         params.get("format", "png"),
     )
 
@@ -356,7 +356,7 @@ def handle_generate_presentation(params: Dict[str, Any]) -> Dict[str, Any]:
     return generate_presentation(
         params.get("title", "Untitled"),
         params.get("slides", []),
-        params.get("output_path", "/tmp/presentation.pptx"),
+        params.get("output_path", str(Path(tempfile.gettempdir()) / "presentation.pptx")),
         params.get("format", "pptx"),
     )
 
@@ -367,7 +367,7 @@ def handle_convert_document(params: Dict[str, Any]) -> Dict[str, Any]:
         return convert_with_libreoffice(params.get("input_path", ""), params.get("format", "pdf"))
     return convert_with_pandoc(
         params.get("input_path", ""),
-        params.get("output_path", "/tmp/output.pptx"),
+        params.get("output_path", str(Path(tempfile.gettempdir()) / "output.pptx")),
         params.get("from_format", "markdown"),
         params.get("to_format", "pptx"),
     )

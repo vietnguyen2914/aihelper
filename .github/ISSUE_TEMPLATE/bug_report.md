@@ -22,7 +22,7 @@ What should have happened instead.
 
 ## Environment
 
-- **OS:** macOS / Linux
+- **OS:** macOS / Linux / Windows
 - **Python version:** `python3 --version`
 - **aihelper version:** `git rev-parse HEAD`
 - **Daemon status:** running / not running
@@ -39,7 +39,11 @@ aihelper doctor
 If applicable, attach daemon logs:
 
 ```bash
+# macOS/Linux
 cat ~/.aihelper/daemon.log
+
+# Windows PowerShell
+Get-Content "$HOME\.aihelper\daemon.log"
 ```
 
 ## Additional Context
