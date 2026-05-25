@@ -1,0 +1,100 @@
+{
+  "name": "aihelper-vscode",
+  "displayName": "aihelper",
+  "description": "Seamless aihelper MCP integration for VSCode. Sub-millisecond context engine, daemon management, status bar, and zero-config setup.",
+  "version": "0.1.0",
+  "publisher": "vietnguyen2914",
+  "license": "MIT",
+  "icon": "resources/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vietnguyen2914/aihelper"
+  },
+  "bugs": {
+    "url": "https://github.com/vietnguyen2914/aihelper/issues"
+  },
+  "engines": {
+    "vscode": "^1.98.0"
+  },
+  "categories": [
+    "Other",
+    "Machine Learning",
+    "Programming Languages"
+  ],
+  "keywords": [
+    "aihelper",
+    "mcp",
+    "context",
+    "semantic-routing",
+    "coding-assistant",
+    "codex",
+    "ai"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./src/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "aihelper.enable",
+        "title": "aihelper: Enable MCP Integration"
+      },
+      {
+        "command": "aihelper.disable",
+        "title": "aihelper: Disable MCP Integration"
+      },
+      {
+        "command": "aihelper.daemonStart",
+        "title": "aihelper: Start Daemon"
+      },
+      {
+        "command": "aihelper.daemonStop",
+        "title": "aihelper: Stop Daemon"
+      },
+      {
+        "command": "aihelper.daemonStatus",
+        "title": "aihelper: Check Daemon Status"
+      },
+      {
+        "command": "aihelper.openLogs",
+        "title": "aihelper: Open Daemon Logs"
+      },
+      {
+        "command": "aihelper.reinstall",
+        "title": "aihelper: Re-run Bootstrap & Reinstall"
+      }
+    ],
+    "configuration": {
+      "title": "aihelper",
+      "properties": {
+        "aihelper.path": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Path to the aihelper installation directory. Leave empty for auto-detection (searches `AIHELPER_HOME`, `PATH`, and common locations)."
+        },
+        "aihelper.pythonCommand": {
+          "type": "string",
+          "default": "auto",
+          "enum": [
+            "auto",
+            "python",
+            "python3",
+            "py"
+          ],
+          "markdownDescription": "Python command to use. `auto` detects the right one for your platform (`python` on Windows, `python3` on macOS/Linux)."
+        },
+        "aihelper.enableOnStartup": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Automatically start the aihelper daemon and enable MCP when VSCode starts."
+        },
+        "aihelper.statusBar": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Show aihelper status in the VSCode status bar."
+        }
+      }
+    }
+  }
+}
