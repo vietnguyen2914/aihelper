@@ -1,10 +1,12 @@
 """
-aihelperd — Persistent Unix-socket daemon for zero-latency AI context.
+aihelperd — Persistent daemon for zero-latency AI context.
 
 Eliminates Python startup latency (~0.44s) by running as a persistent
 background process. Keeps caches warm in memory. CLI becomes a thin client.
 
-Protocol: JSON-line over Unix socket at ~/.aihelper/aihelper.sock
+Protocol: JSON-line over platform-native local IPC:
+- macOS/Linux: Unix socket at ~/.aihelper/aihelper.sock
+- Windows: 127.0.0.1 TCP loopback, endpoint stored in ~/.aihelper/aihelper.tcp.json
 
 Start:   aihelper daemon start
 Stop:    aihelper daemon stop
@@ -14,6 +16,7 @@ from __future__ import annotations
 
 import json
 import os
+import platform
 import signal
 import socket
 import sys
@@ -23,8 +26,11 @@ from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
 SOCKET_PATH = Path.home() / ".aihelper" / "aihelper.sock"
+TCP_ENDPOINT_FILE = Path.home() / ".aihelper" / "aihelper.tcp.json"
 PID_FILE = Path.home() / ".aihelper" / "aihelperd.pid"
 LOG_FILE = Path.home() / ".aihelper" / "daemon.log"
+IS_WINDOWS = platform.system() == "Windows"
+TCP_HOST = "127.0.0.1"
 
 # In-memory caches
 _memory_cache: Dict[str, Dict[str, Any]] = {}  # project_root -> cached context
@@ -37,6 +43,70 @@ def _log(msg: str) -> None:
             f.write(f"[{timestamp}] {msg}\n")
     except OSError:
         pass
+
+
+def _transport_name() -> str:
+    return "tcp" if IS_WINDOWS else "unix"
+
+
+def _endpoint_dir() -> Path:
+    return Path.home() / ".aihelper"
+
+
+def _read_tcp_endpoint() -> Optional[tuple[str, int]]:
+    if not TCP_ENDPOINT_FILE.exists():
+        return None
+    try:
+        data = json.loads(TCP_ENDPOINT_FILE.read_text(encoding="utf-8"))
+        host = str(data.get("host") or TCP_HOST)
+        port = int(data.get("port"))
+        return host, port
+    except (OSError, ValueError, TypeError, json.JSONDecodeError):
+        return None
+
+
+def _write_tcp_endpoint(host: str, port: int) -> None:
+    TCP_ENDPOINT_FILE.parent.mkdir(parents=True, exist_ok=True)
+    TCP_ENDPOINT_FILE.write_text(
+        json.dumps({"host": host, "port": port, "pid": os.getpid()}),
+        encoding="utf-8",
+    )
+
+
+def _cleanup_endpoint() -> None:
+    if SOCKET_PATH.exists():
+        try:
+            SOCKET_PATH.unlink()
+        except OSError:
+            pass
+    if TCP_ENDPOINT_FILE.exists():
+        try:
+            TCP_ENDPOINT_FILE.unlink()
+        except OSError:
+            pass
+    if PID_FILE.exists():
+        try:
+            PID_FILE.unlink()
+        except OSError:
+            pass
+
+
+def _connect_socket(timeout: float = 1.0) -> socket.socket:
+    if IS_WINDOWS:
+        endpoint = _read_tcp_endpoint()
+        if endpoint is None:
+            raise OSError("missing_tcp_endpoint")
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(timeout)
+        sock.connect(endpoint)
+        return sock
+
+    if not SOCKET_PATH.exists():
+        raise OSError("missing_unix_socket")
+    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    sock.settimeout(timeout)
+    sock.connect(str(SOCKET_PATH))
+    return sock
 
 
 def _resolve_project(params: Dict[str, Any]) -> Path:
@@ -468,20 +538,27 @@ def _periodic_persist(stop_event: threading.Event) -> None:
 
 
 def run_daemon() -> None:
-    """Main daemon loop — listen on Unix socket."""
+    """Main daemon loop — listen on the platform-native local endpoint."""
     handle_health._start_time = time.time()  # type: ignore[attr-defined]
 
-    # Ensure socket directory exists
-    SOCKET_PATH.parent.mkdir(parents=True, exist_ok=True)
+    # Ensure endpoint directory exists.
+    _endpoint_dir().mkdir(parents=True, exist_ok=True)
+    _cleanup_endpoint()
 
-    # Remove stale socket
-    if SOCKET_PATH.exists():
-        SOCKET_PATH.unlink()
+    if IS_WINDOWS:
+        server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        server.bind((TCP_HOST, 0))
+        host, port = server.getsockname()
+        _write_tcp_endpoint(host, int(port))
+        endpoint_label = f"{host}:{port}"
+    else:
+        server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        server.bind(str(SOCKET_PATH))
+        os.chmod(str(SOCKET_PATH), 0o600)
+        endpoint_label = str(SOCKET_PATH)
 
-    server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    server.bind(str(SOCKET_PATH))
     server.listen(5)
-    os.chmod(str(SOCKET_PATH), 0o600)
 
     # Write PID
     PID_FILE.parent.mkdir(parents=True, exist_ok=True)
@@ -520,7 +597,7 @@ def run_daemon() -> None:
                 pass
     threading.Thread(target=_persist_telemetry_loop, daemon=True).start()
 
-    _log(f"aihelperd started on {SOCKET_PATH} (pid={os.getpid()}) (warmup=on health=on telemetry=on)")
+    _log(f"aihelperd started on {endpoint_label} transport={_transport_name()} (pid={os.getpid()}) (warmup=on health=on telemetry=on)")
 
     # Handle graceful shutdown
     def shutdown(signum=None, frame=None):
@@ -536,14 +613,13 @@ def run_daemon() -> None:
         except Exception:
             pass
         server.close()
-        if SOCKET_PATH.exists():
-            SOCKET_PATH.unlink()
-        if PID_FILE.exists():
-            PID_FILE.unlink()
+        _cleanup_endpoint()
         sys.exit(0)
 
     signal.signal(signal.SIGTERM, shutdown)
     signal.signal(signal.SIGINT, shutdown)
+    if IS_WINDOWS:
+        signal.signal(signal.SIGBREAK, shutdown)
 
     # Accept loop
     buffer_size = 65536
@@ -579,12 +655,8 @@ def run_daemon() -> None:
 
 def is_daemon_running() -> bool:
     """Check if daemon is running and socket is responsive."""
-    if not SOCKET_PATH.exists():
-        return False
     try:
-        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        sock.settimeout(1.0)
-        sock.connect(str(SOCKET_PATH))
+        sock = _connect_socket(timeout=1.0)
         sock.sendall(json.dumps({"method": "health", "params": {}, "id": 1}).encode() + b"\n")
         response = sock.recv(4096)
         sock.close()
@@ -608,9 +680,7 @@ def daemon_call(method: str, params: Optional[Dict[str, Any]] = None, timeout: f
         "id": 1,
     })
 
-    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    sock.settimeout(timeout)
-    sock.connect(str(SOCKET_PATH))
+    sock = _connect_socket(timeout=timeout)
     sock.sendall(request.encode() + b"\n")
 
     data = b""
@@ -636,15 +706,21 @@ def start_daemon() -> Dict[str, Any]:
 
     import subprocess
     main_py = Path(__file__).resolve().parent / "main.py"
+    popen_kwargs: Dict[str, Any] = {
+        "stdout": subprocess.DEVNULL,
+        "stderr": subprocess.DEVNULL,
+    }
+    if IS_WINDOWS:
+        popen_kwargs["creationflags"] = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+    else:
+        popen_kwargs["start_new_session"] = True
 
     proc = subprocess.Popen(
         [sys.executable, str(main_py), "daemon", "serve"],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        start_new_session=True,
+        **popen_kwargs,
     )
 
-    # Wait for socket to appear
+    # Wait for endpoint to appear and respond.
     for _ in range(30):
         if is_daemon_running():
             return {"status": "started", "pid": proc.pid}
@@ -658,17 +734,15 @@ def stop_daemon() -> Dict[str, Any]:
     pid = _read_pid()
     if pid:
         try:
-            os.kill(pid, signal.SIGTERM)
+            if IS_WINDOWS:
+                os.kill(pid, signal.CTRL_BREAK_EVENT)
+            else:
+                os.kill(pid, signal.SIGTERM)
             time.sleep(0.5)
         except ProcessLookupError:
             pass
 
-    # Clean up socket
-    if SOCKET_PATH.exists():
-        SOCKET_PATH.unlink()
-
-    if PID_FILE.exists():
-        PID_FILE.unlink()
+    _cleanup_endpoint()
 
     return {"status": "stopped"}
 
@@ -677,11 +751,16 @@ def daemon_status() -> Dict[str, Any]:
     """Get daemon status."""
     running = is_daemon_running()
     pid = _read_pid() if running else None
+    tcp_endpoint = _read_tcp_endpoint()
     return {
         "running": running,
         "pid": pid,
+        "transport": _transport_name(),
         "socket": str(SOCKET_PATH),
         "socket_exists": SOCKET_PATH.exists(),
+        "tcp_endpoint": f"{tcp_endpoint[0]}:{tcp_endpoint[1]}" if tcp_endpoint else None,
+        "tcp_endpoint_file": str(TCP_ENDPOINT_FILE),
+        "tcp_endpoint_exists": TCP_ENDPOINT_FILE.exists(),
     }
 
 

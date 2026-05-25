@@ -23,7 +23,7 @@ aihelper diff-summary            # Semantic git diff
 ## Daemon
 ```bash
 aihelper daemon start            # Persistent background runtime
-aihelper daemon status           # Health + socket check
+aihelper daemon status           # Health + local IPC endpoint check
 aihelper daemon stop
 ```
 

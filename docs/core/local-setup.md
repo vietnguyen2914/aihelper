@@ -10,7 +10,7 @@ aihelper is designed to run **100% locally**. No cloud dependency for core featu
 Your Editor (Zed/Claude/VSCode/Codex)
     │ MCP protocol
     ▼
-aihelper Daemon (Unix socket, ~0.3ms IPC)
+aihelper Daemon (Unix socket on macOS/Linux, TCP loopback on Windows)
     │ in-memory cache
     ▼
 Context Engine (routing, symbols, patches)
@@ -23,10 +23,11 @@ Local Models (Ollama) or Cloud APIs
 
 ```
 ~/.aihelper/
-├── aihelper.sock       # Unix socket (daemon IPC)
+├── aihelper.sock       # Unix socket on macOS/Linux
+├── aihelper.tcp.json   # TCP loopback endpoint metadata on Windows
 ├── aihelperd.pid       # Daemon PID file
 ├── daemon.log          # Daemon runtime log
-├── logs/               # LaunchAgent logs
+├── logs/               # LaunchAgent/system logs
 │   ├── launchd.stdout.log
 │   └── launchd.stderr.log
 ├── persist/            # SSD cache persistence
