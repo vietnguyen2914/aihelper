@@ -249,7 +249,7 @@ bin\aihelper.cmd route "fix bug"
 - Endpoint metadata: `%USERPROFILE%\.aihelper\aihelper.tcp.json`.
 - PID file: `%USERPROFILE%\.aihelper\aihelperd.pid`.
 - Logs: `%USERPROFILE%\.aihelper\daemon.log`.
-- Auto-start: manual daemon start is supported first; Scheduled Task support is planned after native Windows smoke testing.
+- Auto-start: manual daemon start is supported first; for auto-start in VSCode, use the [VSCode extension](#option-a-install-the-vscode-extension-recommended). Scheduled Task support is planned after native Windows smoke testing.
 
 ---
 
@@ -272,34 +272,71 @@ aihelper speaks **MCP** (Model Context Protocol). Configure your editor to conne
 }
 ```
 
-### Claude Desktop
+### VSCode (native MCP, Roo-Cline, Continue)
+
+#### Option A: Install the VSCode extension (recommended)
+
+This extension auto-discovers aihelper, starts the daemon, and registers the MCP server - no manual config needed.
+
+```bash
+# From the extensions/vscode directory
+cd extensions/vscode
+
+# Package the extension
+npx -p @vscode/vsce vsce package --out aihelper-vscode.vsix
+
+# Install in VSCode
+code --install-extension aihelper-vscode.vsix
+```
+
+Once installed, run **"aihelper: Enable MCP Integration"** from the command palette (`Ctrl+Shift+P`).
+
+#### Option B: Manual config (native MCP, 1.98+)
+
+Add to your user `settings.json`:
+
+**macOS / Linux:**
+```json
+{
+  "mcp": {
+    "servers": {
+      "aihelper": {
+        "command": "python3",
+        "args": ["/path/to/aihelper/context_engine/mcp_server.py"]
+      }
+    }
+  }
+}
+```
+
+**Windows (PowerShell / CMD):**
+```json
+{
+  "mcp": {
+    "servers": {
+      "aihelper": {
+        "command": "python",
+        "args": ["C:\\path\\to\\aihelper\\context_engine\\mcp_server.py"]
+      }
+    }
+  }
+}
+```
+
+For **Roo-Cline**, add to `.vscode/mcp.json` or the extension's MCP config:
 
 ```json
-// ~/Library/Application Support/Claude/claude_desktop_config.json
 {
   "mcpServers": {
     "aihelper": {
-      "command": "python3",
+      "command": "python",
       "args": ["/path/to/aihelper/context_engine/mcp_server.py"]
     }
   }
 }
 ```
 
-### VSCode (Roo-Cline / Continue)
-
-Add to extension's MCP config:
-
-```json
-{
-  "mcpServers": {
-    "aihelper": {
-      "command": "python3",
-      "args": ["/path/to/aihelper/context_engine/mcp_server.py"]
-    }
-  }
-}
-```
+> **Windows note:** Use `python` (not `python3`) and Windows-style paths with double backslashes or forward slashes.
 
 ### Gemini / Antigravity
 
@@ -364,7 +401,9 @@ See [Linux section](#linux) above for systemd service setup.
 
 ### Windows auto-start
 
-Use manual daemon start for the first Windows release:
+**Recommended:** Install the [VSCode extension](#option-a-install-the-vscode-extension-recommended) - it auto-starts the daemon when VSCode opens.
+
+Alternatively, use manual daemon start for the first Windows release:
 
 ```powershell
 .\bin\aihelper.ps1 daemon start
