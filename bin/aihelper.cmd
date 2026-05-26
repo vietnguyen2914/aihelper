@@ -30,7 +30,7 @@ if "%FIRST_ARG%"=="init-config" (
   exit /b %ERRORLEVEL%
 )
 
-set "KNOWN= analyze feedback feedback-summary feedback_summary rebuild-index rebuild_index cache prompt-blocks prompt_blocks diff-summary diff_summary memory symbol deps route patch-plan patch_plan patch-apply patch_apply validate-files validate_files ollama daemon doctor editor-context editor_context lsp confidence structural-diff structural_diff hierarchical-context hierarchical_context scheduler intent-route intent_route capability-route capability_route telemetry health diagnostics impact-graph impact_graph classify-op classify_op degradation warmup init-config -h --help help "
+set "KNOWN= analyze feedback feedback-summary feedback_summary rebuild-index rebuild_index cache prompt-blocks prompt_blocks diff-summary diff_summary memory symbol deps route patch-plan patch_plan patch-apply patch_apply validate-files validate_files ollama daemon doctor editor-context editor_context lsp confidence structural-diff structural_diff hierarchical-context hierarchical_context scheduler intent-route intent_route capability-route capability_route telemetry health diagnostics impact-graph impact_graph classify-op classify_op degradation warmup init-config upgrade graph affected -h --help help "
 
 echo %KNOWN% | findstr /C:" %FIRST_ARG% " >nul
 if errorlevel 1 (
