@@ -38,7 +38,8 @@ if (-not $AihelperArgs -or $AihelperArgs.Count -eq 0) {
 }
 
 if ($AihelperArgs[0] -eq "init-config") {
-    & powershell -ExecutionPolicy Bypass -File (Join-Path $RepoRoot "scripts" "init-config.ps1") @AihelperArgs[1..$AihelperArgs.Count]
+    $initArgs = $AihelperArgs[1..$AihelperArgs.Count]
+    & powershell -ExecutionPolicy Bypass -File (Join-Path $RepoRoot "scripts" "init-config.ps1") @initArgs
     exit $LASTEXITCODE
 }
 
@@ -50,7 +51,8 @@ if ($AihelperArgs[0] -notin @(
     "confidence", "structural-diff", "structural_diff", "hierarchical-context", "hierarchical_context",
     "scheduler", "intent-route", "intent_route", "capability-route", "capability_route", "telemetry",
     "health", "diagnostics", "impact-graph", "impact_graph", "classify-op", "classify_op",
-    "degradation", "warmup", "init-config", "-h", "--help", "help"
+    "degradation", "warmup", "init-config", "upgrade", "graph", "affected",
+    "-h", "--help", "help"
 )) {
     $AihelperArgs = @("analyze") + $AihelperArgs
 }

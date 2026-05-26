@@ -126,7 +126,299 @@ def _semantic_digest(text: str, suffix: str) -> str:
     return hashlib.sha1(normalized.encode("utf-8", errors="ignore")).hexdigest()
 
 
+def load_cached_file_index(project_root: Path) -> Dict[str, Any]:
+    """Load the cached file_index from JSON, return empty dict if not exists."""
+    paths = cache_paths(project_root.resolve())
+    return safe_load_json(paths["file_index"], default={}) or {}
+
+
+def build_file_index_incremental(project_root: Path, diff: Dict[str, Any]) -> Dict[str, Any]:
+    """Build file index for only changed files, merge with existing cache.
+
+    This is the heart of incremental update:
+    1. Load cached file_index
+    2. Remove entries for deleted/changed files
+    3. Build fresh entries for added/changed files
+    4. Return merged result — no full filesystem scan.
+    """
+    cached = load_cached_file_index(project_root)
+    existing = {item.get("path"): item for item in cached.get("files", [])}
+
+    # Remove stale entries
+    for path in diff.get("removed", []) + diff.get("changed", []) + diff.get("semantic_changed", []):
+        existing.pop(path, None)
+
+    # Build new entries only for changed files
+    touched = set(diff.get("added", []) + diff.get("changed", []) + diff.get("semantic_changed", []))
+    fresh_files: List[Dict[str, Any]] = []
+    extension_counts: Dict[str, int] = {}
+
+    for item in cached.get("files", []):
+        fp = item.get("path", "")
+        if fp not in touched:
+            fresh_files.append(item)
+            ext = item.get("extension", "")
+            extension_counts[ext] = extension_counts.get(ext, 0) + 1
+
+    for relative in sorted(touched):
+        path = project_root / relative
+        try:
+            stat = path.stat()
+        except OSError:
+            continue
+        ext = path.suffix.lower()
+        text = _read_text(path, max_bytes=256000)
+        extension_counts[ext] = extension_counts.get(ext, 0) + 1
+        fresh_files.append({
+            "path": relative,
+            "name": path.name,
+            "extension": ext,
+            "size": stat.st_size,
+            "mtime_ns": stat.st_mtime_ns,
+            "sha1_head": _file_digest(path),
+            "semantic_sha1": _semantic_digest(text, ext) if text else "",
+        })
+
+    return {"files": fresh_files, "extension_counts": extension_counts, "count": len(fresh_files)}
+
+
+def build_symbol_graph_incremental(project_root: Path, file_index: Dict[str, Any],
+                                    diff: Dict[str, Any], existing_symbol_graph: Dict[str, Any]) -> Dict[str, Any]:
+    """Build symbol graph for only changed files, merge with existing.
+
+    1. Remove symbols for changed/removed files
+    2. Extract symbols only for added/changed files
+    3. Rebuild by_name index
+    4. Merge imports_by_file
+    """
+    from .common import normalize_identifier
+
+    existing_symbols = existing_symbol_graph.get("symbols", [])
+    existing_imports = existing_symbol_graph.get("imports_by_file", {})
+    touched = set(diff.get("added", []) + diff.get("changed", []) + diff.get("semantic_changed", []))
+    removed = set(diff.get("removed", []))
+
+    # Filter out symbols from touched/removed files
+    kept_symbols = [
+        s for s in existing_symbols
+        if s.get("file", "") not in touched and s.get("file", "") not in removed
+    ]
+
+    # Filter out imports from touched/removed files
+    kept_imports = {
+        k: v for k, v in existing_imports.items()
+        if k not in touched and k not in removed
+    }
+
+    # Extract symbols and imports only for touched files
+    new_symbols: List[Dict[str, Any]] = []
+    new_imports: Dict[str, List[str]] = {}
+    for item in file_index.get("files", []):
+        relative = str(item.get("path", ""))
+        if relative not in touched:
+            continue
+        suffix = str(item.get("extension", ""))
+        if suffix not in {".java", ".kt", ".kts", ".ts", ".tsx", ".js", ".jsx", ".py", ".php"}:
+            continue
+        path = project_root / relative
+        text = _read_text(path)
+        if not text:
+            continue
+        imports: List[str] = []
+        for line_no, line in enumerate(text.splitlines(), start=1):
+            if len(imports) < 40 and IMPORT_PATTERN.search(line):
+                imports.append(line.strip()[:240])
+            for kind, pattern in SYMBOL_PATTERNS:
+                match = pattern.search(line)
+                if not match:
+                    continue
+                name = match.group(1)
+                new_symbols.append({
+                    "name": name,
+                    "normalized": normalize_identifier(name),
+                    "kind": kind.replace("python_", "").replace("php_", ""),
+                    "file": relative,
+                    "line": line_no,
+                    "signature": line.strip()[:240],
+                    "fingerprint": hashlib.sha1(f"{kind}:{name}:{line.strip()}".encode("utf-8")).hexdigest(),
+                })
+                break
+        if imports:
+            new_imports[relative] = imports
+
+    # Merge
+    all_symbols = kept_symbols + new_symbols
+    all_imports = {**kept_imports, **new_imports}
+
+    by_name: Dict[str, List[Dict[str, Any]]] = {}
+    for symbol in all_symbols:
+        by_name.setdefault(symbol["normalized"], []).append(symbol)
+
+    return {"symbols": all_symbols, "by_name": by_name, "imports_by_file": all_imports, "count": len(all_symbols)}
+
+
+def sync_sqlite_incremental(project_root: Path, diff: Dict[str, Any],
+                             file_index: Dict[str, Any],
+                             symbol_graph: Dict[str, Any],
+                             dependency_graph: Dict[str, Any]) -> None:
+    """Sync SQLite incrementally — only DELETE old + INSERT new for changed files.
+
+    Instead of full clear + reinsert (which _sync_cache_to_sqlite does),
+    this DELETEs symbols/edges for removed files, then INSERTs only files that changed.
+    """
+    from .graph_db import get_db
+    import hashlib as _hashlib
+
+    db = get_db(project_root)
+    removed = set(diff.get("removed", []))
+    touched = set(diff.get("added", []) + diff.get("changed", []) + diff.get("semantic_changed", []))
+    all_affected = removed | touched
+
+    if not all_affected:
+        return
+
+    # Step 1: Delete old data for affected files
+    for fpath in all_affected:
+        db.delete_file(fpath)
+
+    # Step 2: Insert updated file records
+    for item in file_index.get("files", []):
+        fpath = item.get("path", "")
+        if fpath not in all_affected:
+            continue
+        suffix = Path(fpath).suffix.lower()
+        lm = {".py": "python", ".js": "javascript", ".mjs": "javascript",
+              ".ts": "typescript", ".tsx": "tsx", ".java": "java",
+              ".go": "go", ".rs": "rust", ".php": "php",
+              ".c": "c", ".h": "c", ".cpp": "cpp", ".cc": "cpp",
+              ".hpp": "cpp", ".rb": "ruby", ".swift": "swift",
+              ".kt": "kotlin", ".kts": "kotlin", ".cs": "csharp",
+              ".lua": "lua", ".dart": "dart", ".sql": "sql",
+              ".json": "json", ".yml": "yaml", ".yaml": "yaml",
+              ".md": "markdown", ".vue": "vue", ".svelte": "svelte"}
+        language = lm.get(suffix, "unknown")
+        db.upsert_file(fpath, item.get("semantic_sha1", ""), language,
+                       item.get("size", 0), item.get("mtime_ns", 0))
+
+    # Step 3: Insert symbols for touched files only
+    new_syms = []
+    for sym in symbol_graph.get("symbols", []):
+        if sym.get("file", "") not in touched:
+            continue
+        new_syms.append({
+            "id": f"{sym['file']}::{sym['name']}",
+            "kind": sym.get("kind", "unknown"),
+            "name": sym["name"],
+            "qualified_name": f"{sym['file']}::{sym['name']}",
+            "file_path": sym["file"],
+            "language": _detect_language(sym["file"]),
+            "start_line": sym.get("line", 1),
+            "end_line": sym.get("line", 1),
+            "signature": sym.get("signature", ""),
+            "fingerprint": sym.get("fingerprint", ""),
+        })
+    if new_syms:
+        db.insert_symbols_batch(new_syms)
+
+    # Step 4: Insert file nodes for FK + edges
+    edges_list = []
+    for edge in dependency_graph.get("edges", []):
+        from_file = edge.get("from", "")
+        to_file = edge.get("to", "")
+        if not from_file or not to_file:
+            continue
+        if from_file in all_affected or to_file in all_affected:
+            edges_list.append({
+                "source": from_file, "target": to_file,
+                "kind": "imports", "provenance": "regex",
+            })
+    # Ensure file nodes exist for FK
+    file_ids = set()
+    for e in edges_list:
+        file_ids.add(e["source"])
+        file_ids.add(e["target"])
+    for fid in file_ids:
+        try:
+            db.insert_symbols_batch([{
+                "id": fid, "kind": "file",
+                "name": fid.split("/")[-1] if "/" in fid else fid,
+                "qualified_name": fid, "file_path": fid,
+                "language": _detect_language(fid),
+                "start_line": 1, "end_line": 1,
+                "fingerprint": _hashlib.sha1(fid.encode()).hexdigest(),
+            }])
+        except Exception:
+            pass
+    if edges_list:
+        try:
+            db.insert_edges_batch(edges_list)
+        except Exception:
+            pass
+
+
+def update_cache(project_root: Path) -> Dict[str, Any]:
+    """Incremental cache update — only rebuilds data for changed files.
+
+    Uses cache_diff() to detect changes, then incrementally updates:
+    - file_index (JSON + SQLite files table)
+    - symbol_graph (JSON + SQLite symbols table)
+    - dependency_graph (JSON + SQLite edges table)
+
+    Falls back to full build_cache if no existing cache exists.
+    """
+    project_root = project_root.resolve()
+    paths = cache_paths(project_root)
+
+    # If no cache exists, do full build
+    status = cache_status(project_root)
+    if not status.get("fresh"):
+        return build_cache(project_root)
+
+    # Incremental: detect what changed
+    diff = cache_diff(project_root)
+    if not diff.get("dirty"):
+        # Nothing changed — fast path
+        return {"manifest": status.get("manifest", {}),
+                "cache_dir": str(paths["root"]), "updated": False}
+
+    # Incremental: only build for changed files
+    file_index = build_file_index_incremental(project_root, diff)
+    existing_sg = safe_load_json(paths["symbol_graph"], default={}) or {}
+    symbol_graph = build_symbol_graph_incremental(project_root, file_index, diff, existing_sg)
+    dependency_graph = build_dependency_graph(file_index, symbol_graph)
+
+    # Write JSON files (always full — JSON is backup; SQLite is primary)
+    repo_summary = build_repo_summary(project_root, file_index)
+    db_schema_summary = build_db_schema_summary(project_root, file_index)
+    manifest = {
+        "version": AIHELPER_CACHE_VERSION,
+        "project_root": str(project_root),
+        "built_at": datetime.now(timezone.utc).isoformat(),
+        "file_count": file_index.get("count", 0),
+        "symbol_count": symbol_graph.get("count", 0),
+        "semantic_fingerprints": True,
+        "incremental": True,
+    }
+    safe_write_json(paths["file_index"], file_index)
+    safe_write_json(paths["repo_summary"], repo_summary)
+    safe_write_json(paths["symbol_graph"], symbol_graph)
+    safe_write_json(paths["dependency_graph"], dependency_graph)
+    safe_write_json(paths["db_schema_summary"], db_schema_summary)
+    safe_write_json(paths["manifest"], manifest)
+
+    # Incremental SQLite sync
+    try:
+        sync_sqlite_incremental(project_root, diff, file_index, symbol_graph, dependency_graph)
+        manifest["sqlite_synced"] = True
+    except Exception:
+        manifest["sqlite_synced"] = False
+
+    return {"manifest": manifest, "cache_dir": str(paths["root"]),
+            "updated": True, "changes": diff}
+
+
 def build_file_index(project_root: Path) -> Dict[str, Any]:
+    """Build full file index. Prefer update_cache() for incremental updates."""
     files: List[Dict[str, Any]] = []
     extension_counts: Dict[str, int] = {}
     for path in sorted(_iter_files(project_root), key=lambda item: str(item)):
@@ -632,7 +924,7 @@ def watch_cache(project_root: Path, interval: float = 2.0, once: bool = False, m
             diff["watchman"] = {"enabled": False, "reason": watchman.get("error") or "unavailable"}
         last_diff = diff
         if diff.get("dirty"):
-            warm_project(project_root)
+            update_cache(project_root)
             rebuilds += 1
         if once or (max_cycles and cycles >= max_cycles):
             return {
@@ -676,6 +968,12 @@ def clean_cache(project_root: Path) -> Dict[str, Any]:
     existed = root.exists()
     if existed:
         shutil.rmtree(root)
+    # Reset SQLite singleton so next get_db() creates fresh connection
+    try:
+        from .graph_db import close_all as _close_all
+    except ImportError:
+        from graph_db import close_all as _close_all
+    _close_all()
     return {"cache_dir": str(root), "removed": existed}
 
 

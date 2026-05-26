@@ -33,6 +33,9 @@ This project follows a lightweight release-note style. Dates use `YYYY-MM-DD`.
 
 - JSON file storage O(n) bottleneck → SQLite FTS5 O(log n).
 - No call graph capabilities → multi-depth BFS callers/callees/trace/impact.
+- No framework routes → 14 web frameworks detected with edges from routes → handlers.
+- **`clean_cache` not resetting SQLite singleton** → now calls `close_all()` to prevent stale connections.
+- **`watch_cache` always doing full rebuild** → replaced by `update_cache()` incremental path. `cache_diff()` detects changes → `build_file_index_incremental()` + `build_symbol_graph_incremental()` + `sync_sqlite_incremental()` process only changed files. Initial test: 3x speedup on 120-file project; scales better on larger codebases.
 - Symbol lookup iteration → sub-millisecond FTS5.
 
 ### Benchmarks (aihelper self-host, M1 Pro)
