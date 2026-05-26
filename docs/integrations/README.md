@@ -10,3 +10,7 @@ Integration docs show how one feature depends on another feature, an external AP
 |---|---|---|---|
 | `<feature>` | `<feature/system>` | `API / DB / event / shared service` | `<short explanation>` |
 
+## aihelper integration docs
+
+- [editor-integration.md](./editor-integration.md) — On-demand VS Code/Copilot, Codex, and Claude integration scripts
+

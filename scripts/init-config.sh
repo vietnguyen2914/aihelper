@@ -16,7 +16,12 @@
 # On first run (no --all), also generates:
 #   - ~/.github/copilot-instructions.md (global)
 #   - ~/.codex/config.json (Codex settings)
+#   - ~/.config/zed/settings.json (Zed MCP)
+#   - ~/.gemini/config/mcp_config.json (Gemini/Antigravity MCP)
+#   - ~/.config/opencode/opencode.json (OpenCode MCP)
 #   - VS Code copilot settings reference
+#   - On-demand integration scripts for:
+#       VS Code/Copilot, Zed, Gemini, OpenCode, Codex, and Claude
 # ============================================================================
 
 set -euo pipefail
@@ -173,6 +178,28 @@ write_if_changed() {
     log "OK" "  Written: $file"
 }
 
+run_integration_script() {
+    local script="$1"
+    shift
+    if $DRY_RUN; then
+        echo "  [DRY-RUN] Would run: python3 $script $*"
+        return
+    fi
+    if ! command -v python3 >/dev/null 2>&1; then
+        log "SKIP" "  Python3 unavailable; skipping integration script $script"
+        return
+    fi
+    if ! python3 "$script" "$@"; then
+        log "WARN" "  Integration script failed: $script $*"
+    fi
+}
+
+# Helper: build dry-run flag for integration scripts
+DRY_FLAG=""
+if $DRY_RUN; then
+    DRY_FLAG="--dry-run"
+fi
+
 echo ""
 echo "── Generating config files ──────────────────────────────"
 echo ""
@@ -212,19 +239,8 @@ GLOBALEOF
 )
 write_if_changed "$CO_GLOBAL_FILE" "$CO_GLOBAL_CONTENT"
 
-# ── 4b: ~/.codex/config.json ──────────────────────────────────────────
-CODEX_CONFIG_DIR="$HOME/.codex"
-CODEX_CONFIG_FILE="$CODEX_CONFIG_DIR/config.json"
-CODEX_CONFIG_CONTENT=$(cat <<- CODEXEOF
-{
-  "developer_instructions": "CRITICAL: Before every response, run aihelper_route and aihelper_context tools first to compress project context. Never scan full repos. Use symbol lookups instead of grep. Respect the token budget from aihelper_route. Default to 2000 max_context_chars for context tool calls. Only escalate to full file reads when aihelper context is insufficient. This applies regardless of which model is being used.",
-  "model_auto_compact_token_limit": 4000,
-  "model_context_window": 32000,
-  "model_verbosity": "concise"
-}
-CODEXEOF
-)
-write_if_changed "$CODEX_CONFIG_FILE" "$CODEX_CONFIG_CONTENT"
+# ── 4b: Agent integration scripts (VS Code/Copilot, Codex, Claude)
+# The helper scripts below are on-demand and are also invoked by init-config.
 
 # ── 4c: Per-project .github/copilot-instructions.md ───────────────────
 for project_dir in "${PROJECTS[@]}"; do
@@ -258,81 +274,26 @@ PROJEOF
     write_if_changed "$proj_file" "$proj_content"
 done
 
-# ── 4d: VS Code settings ──────────────────────────────────────────────
-VSCODE_SETTINGS="$HOME/Library/Application Support/Code/User/settings.json"
-if [ -f "$VSCODE_SETTINGS" ]; then
-    # Use python3 to safely merge JSON
-    python3 -c "
-import json, sys, os
+# ── 4d: Editor and agent integration scripts ───────────────────────
+# Each script generates config for its target editor/agent.
+# All scripts are failsafe: they write configs even if the editor
+# is not installed, and skip if no changes are needed.
 
-home = os.path.expanduser('~')
-settings_path = '$VSCODE_SETTINGS'
+# Per-project scripts (VS Code Copilot, Claude)
+for project_dir in "${PROJECTS[@]}"; do
+    run_integration_script "$AIHELPER_ROOT/scripts/vscode-copilot-integration.py" --path "$project_dir" $DRY_FLAG
+done
 
-try:
-    with open(settings_path) as f:
-        settings = json.load(f)
-except (FileNotFoundError, json.JSONDecodeError):
-    settings = {}
+# Global/agent scripts (MCP config for editors)
+run_integration_script "$AIHELPER_ROOT/scripts/codex-integration.py" $DRY_FLAG
+run_integration_script "$AIHELPER_ROOT/scripts/zed-integration.py" $DRY_FLAG
+run_integration_script "$AIHELPER_ROOT/scripts/gemini-integration.py" $DRY_FLAG
+run_integration_script "$AIHELPER_ROOT/scripts/opencode-integration.py" $DRY_FLAG
 
-instructions_key = 'github.copilot.chat.codeGeneration.instructions'
-instructions_value = [{'file': '~/.github/copilot-instructions.md'}]
-
-if instructions_key not in settings:
-    settings[instructions_key] = instructions_value
-    with open(settings_path, 'w') as f:
-        json.dump(settings, f, indent=2, ensure_ascii=False)
-    print('[OK]   Written: VS Code copilot instructions reference')
-else:
-    print('[SKIP] No change: VS Code already has copilot instructions')
-" 2>&1 || log "WARN" "Could not update VS Code settings (non-VS Code machine?)"
-fi
-
-# ── 4e: Zed settings (update MCP server paths if needed) ──────────────
-ZED_SETTINGS="$HOME/.config/zed/settings.json"
-if [ -f "$ZED_SETTINGS" ]; then
-    python3 -c "
-import json, os, sys
-
-settings_path = '$ZED_SETTINGS'
-aihelper_root = '$AIHELPER_ROOT'
-
-try:
-    with open(settings_path) as f:
-        settings = json.load(f)
-except (FileNotFoundError, json.JSONDecodeError):
-    settings = {}
-
-mcp_key = 'mcp_servers'
-if mcp_key not in settings:
-    # No MCP section, nothing to update
-    print('[SKIP] No change: Zed has no MCP servers section')
-    sys.exit(0)
-
-aihelper_mcp = settings.get(mcp_key, {}).get('mcp-server-aihelper', {})
-if aihelper_mcp:
-    # Fix the command path if it points to a hardcoded location
-    cmd = aihelper_mcp.get('command', '')
-    if 'aihelper' in cmd and not cmd.startswith('python3 ') and not cmd.endswith('mcp_server.py'):
-        # Try to resolve
-        possible_path = os.path.join(aihelper_root, 'context_engine', 'mcp_server.py')
-        if os.path.exists(possible_path):
-            new_cmd = 'python3 ' + possible_path
-            if cmd != new_cmd:
-                aihelper_mcp['command'] = 'python3'
-                aihelper_mcp.setdefault('args', [])
-                # Filter out old path args
-                aihelper_mcp['args'] = [a for a in aihelper_mcp.get('args', []) if not a.endswith('mcp_server.py')]
-                aihelper_mcp['args'].append(possible_path)
-                settings[mcp_key]['mcp-server-aihelper'] = aihelper_mcp
-                with open(settings_path, 'w') as f:
-                    json.dump(settings, f, indent=2, ensure_ascii=False)
-                print('[OK]   Updated: Zed aihelper MCP server path')
-                sys.exit(0)
-    print('[SKIP] No change: Zed MCP path looks correct')
-else:
-    print('[SKIP] No aihelper MCP server found in Zed config')
-" 2>&1 || log "WARN" "Could not update Zed settings (non-Zed machine?)"
-fi
+# Per-project scripts (Claude)
+for project_dir in "${PROJECTS[@]}"; do
+    run_integration_script "$AIHELPER_ROOT/scripts/claude-integration.py" --path "$project_dir" $DRY_FLAG
+done
 
 # ── 4f: Auto-populate project registry (optional) ──────────────────
 # Optional: generate project registry for personal KB / documentation.
