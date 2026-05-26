@@ -195,6 +195,99 @@ def _capability_route_tool_schema() -> Dict[str, Any]:
     }
 
 
+def _callers_tool_schema() -> Dict[str, Any]:
+    return {
+        "name": "aihelper_callers",
+        "description": "Find all symbols that call a specific function/method. Returns file:line for each caller. Multi-depth BFS via SQLite call graph.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "symbol": {"type": "string", "description": "Name of the function or method to find callers for"},
+                "depth": {"type": "integer", "description": "How many levels of callers (default: 1)", "default": 1},
+                "project_root": {"type": "string", "description": "Target repository root"},
+            },
+            "required": ["symbol"],
+        },
+    }
+
+
+def _callees_tool_schema() -> Dict[str, Any]:
+    return {
+        "name": "aihelper_callees",
+        "description": "Find all symbols called by a specific function/method. Uses SQLite call graph.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "symbol": {"type": "string", "description": "Name of the function or method"},
+                "depth": {"type": "integer", "description": "How many levels of callees (default: 1)", "default": 1},
+                "project_root": {"type": "string", "description": "Target repository root"},
+            },
+            "required": ["symbol"],
+        },
+    }
+
+
+def _trace_tool_schema() -> Dict[str, Any]:
+    return {
+        "name": "aihelper_trace",
+        "description": "Trace the call path between two symbols — 'how does X reach Y?'. BFS shortest path on call graph. Returns chain of function calls connecting them.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "from": {"type": "string", "description": "Starting symbol name"},
+                "to": {"type": "string", "description": "Target symbol name"},
+                "project_root": {"type": "string", "description": "Target repository root"},
+            },
+            "required": ["from", "to"],
+        },
+    }
+
+
+def _impact_tool_schema() -> Dict[str, Any]:
+    return {
+        "name": "aihelper_impact",
+        "description": "Analyze the impact radius of changing a symbol. Shows transitive callers and affected files via SQLite BFS.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "symbol": {"type": "string", "description": "Name of the symbol to analyze"},
+                "depth": {"type": "integer", "description": "How many levels to traverse (default: 3)", "default": 3},
+                "project_root": {"type": "string", "description": "Target repository root"},
+            },
+            "required": ["symbol"],
+        },
+    }
+
+
+def _explore_tool_schema() -> Dict[str, Any]:
+    return {
+        "name": "aihelper_explore",
+        "description": "Return source code for multiple related symbols in one call. Groups symbols by file, reads contiguous code sections with line numbers. Replaces multiple Read calls.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "Symbol names or keywords (space-separated)"},
+                "max_files": {"type": "integer", "description": "Max files to show source for (default: 8)", "default": 8},
+                "project_root": {"type": "string", "description": "Target repository root"},
+            },
+            "required": ["query"],
+        },
+    }
+
+
+def _graph_status_tool_schema() -> Dict[str, Any]:
+    return {
+        "name": "aihelper_graph_status",
+        "description": "Get SQLite knowledge graph statistics: symbol count, edge count, nodes by kind, files by language, journal mode.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "project_root": {"type": "string", "description": "Target repository root"},
+            },
+        },
+    }
+
+
 def _tool_schemas() -> list[Dict[str, Any]]:
     return [
         _context_tool_schema(),
@@ -206,6 +299,12 @@ def _tool_schemas() -> list[Dict[str, Any]]:
         _diff_tool_schema(),
         _memory_tool_schema(),
         _capability_route_tool_schema(),
+        _callers_tool_schema(),
+        _callees_tool_schema(),
+        _trace_tool_schema(),
+        _impact_tool_schema(),
+        _explore_tool_schema(),
+        _graph_status_tool_schema(),
     ]
 
 
@@ -242,6 +341,15 @@ def _daemon_result(method: str, arguments: Dict[str, Any]) -> Dict[str, Any] | N
     if isinstance(result, dict) and result.get("error"):
         return None
     return result if isinstance(result, dict) else None
+
+
+def _call_graph_tool(daemon_method: str, mode: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
+    from .graph_query import handle_callers, handle_callees, handle_trace, handle_impact, handle_explore
+    handlers = {"callers": handle_callers, "callees": handle_callees, "trace": handle_trace, "impact": handle_impact, "explore": handle_explore}
+    daemon_data = _daemon_result(daemon_method, {"arguments": arguments, "project_root": str(_target_root(arguments))})
+    if daemon_data:
+        return _json_content(daemon_data)
+    return _json_content(handlers[mode](arguments, _target_root(arguments)))
 
 
 def _call_tool(name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
@@ -294,6 +402,24 @@ def _call_tool(name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
             {"project_root": str(_target_root(arguments)), "input": input_text, "file_path": file_path},
         )
         return _json_content(daemon_data or select_pipeline(input_text, file_path))
+    # ── Graph Query Tools (v0.0.7) ────────────────────────────
+    if name == "aihelper_callers":
+        return _call_graph_tool("graph_callers", "callers", arguments)
+    if name == "aihelper_callees":
+        return _call_graph_tool("graph_callees", "callees", arguments)
+    if name == "aihelper_trace":
+        return _call_graph_tool("graph_trace", "trace", arguments)
+    if name == "aihelper_impact":
+        return _call_graph_tool("graph_impact", "impact", arguments)
+    if name == "aihelper_explore":
+        return _call_graph_tool("graph_explore", "explore", arguments)
+    if name == "aihelper_graph_status":
+        daemon_data = _daemon_result("graph_status", {"project_root": str(_target_root(arguments))})
+        if daemon_data:
+            return _json_content(daemon_data)
+        from .graph_db import get_db
+        db = get_db(_target_root(arguments))
+        return _json_content(db.get_stats())
     raise ValueError(f"unknown tool: {name}")
 
 

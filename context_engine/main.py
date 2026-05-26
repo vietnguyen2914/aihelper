@@ -492,6 +492,176 @@ def doctor() -> Dict[str, Any]:
     return results
 
 
+def _handle_affected_cli(argv: list, parser: Any) -> int:
+    """Handle 'aihelper affected' command (v0.0.7)."""
+    import json as _json
+    import sys as _sys
+    from pathlib import Path as _Path
+
+    args = parser.parse_args(argv[1:])
+    root = _Path(args.project_root).resolve() if args.project_root else _Path.cwd()
+
+    files = list(args.files)
+    if args.stdin and not _sys.stdin.isatty():
+        stdin_files = _sys.stdin.read().strip().splitlines()
+        files.extend(f for f in stdin_files if f.strip())
+
+    if not files:
+        print("Error: No files provided. Use: aihelper affected file1.py file2.py", file=_sys.stderr)
+        return 1
+
+    try:
+        from .affected import find_affected_tests
+    except ImportError:
+        from affected import find_affected_tests
+    result = find_affected_tests(files, root, max_depth=args.depth, test_filter=args.filter)
+
+    if args.json:
+        print(_json.dumps(result, indent=2, ensure_ascii=False))
+    else:
+        print("## Affected Tests\n")
+        extra = f" +{len(files) - 5} more" if len(files) > 5 else ""
+        print(f"Changed: {', '.join(files[:5])}{extra}")
+        print(f"Affected tests: {result['affected_count']}")
+        if result.get('affected_tests'):
+            for t in result['affected_tests'][:20]:
+                print(f"  - {t}")
+            if result['affected_count'] > 20:
+                print(f"  ... and {result['affected_count'] - 20} more")
+        print(f"\n{result.get('recommendation', '')}")
+    return 0
+
+
+def _handle_upgrade(argv: list, parser: Any) -> int:
+    """Auto-upgrade all visible projects (v0.0.7).
+
+    For each project under ~/github (or --extra-project):
+    1. Run cache build (which auto-syncs to SQLite)
+    2. Verify SQLite graph was created
+    3. Report results
+    """
+    import json as _json
+    from pathlib import Path as _Path
+
+    # Resolve project roots
+    try:
+        from .cache import discover_project_roots, build_cache, cache_status
+        from .graph_db import get_db
+    except ImportError:
+        from cache import discover_project_roots, build_cache, cache_status
+        from graph_db import get_db
+
+    github_root = _Path.home() / "github"
+    extra_roots = []
+    for i, arg in enumerate(argv[1:], 1):
+        if arg == "--github-root" and i < len(argv) - 1:
+            github_root = _Path(argv[i + 1]).expanduser().resolve()
+        elif arg == "--extra-project" and i < len(argv) - 1:
+            extra_roots.append(_Path(argv[i + 1]).expanduser().resolve())
+
+    is_json = "--json" in argv or "-json" in argv
+    roots = discover_project_roots(github_root=github_root, extra_roots=extra_roots)
+
+    results = {"version": "0.0.7", "projects_scanned": len(roots), "projects": []}
+    for root in roots:
+        r = {"project": str(root), "status": "skipped"}
+        try:
+            status = cache_status(root)
+            r["had_cache"] = status.get("fresh", False)
+            # Rebuild cache (this triggers SQLite sync)
+            build_cache(root)
+            # Verify SQLite
+            db = get_db(root)
+            stats = db.get_stats()
+            r["status"] = "upgraded"
+            r["symbols"] = stats.get("symbol_count", 0)
+            r["edges"] = stats.get("edge_count", 0)
+            r["sqlite_mb"] = stats.get("db_size_mb", 0)
+        except Exception as exc:
+            r["status"] = f"error: {exc}"
+        results["projects"].append(r)
+
+    upgraded = sum(1 for p in results["projects"] if p["status"] == "upgraded")
+    results["upgraded_count"] = upgraded
+
+    if is_json:
+        print(_json.dumps(results, indent=2, ensure_ascii=False))
+    else:
+        print(f"## aihelper v0.0.7 Upgrade\n")
+        print(f"Scanned {len(roots)} projects, upgraded {upgraded}\n")
+        for p in results["projects"]:
+            status = p["status"]
+            marker = "✅" if status == "upgraded" else "⚠️"
+            detail = ""
+            if status == "upgraded":
+                detail = f" ({p.get('symbols', 0)} symbols, {p.get('edges', 0)} edges, {p.get('sqlite_mb', 0)}MB SQLite)"
+            print(f"{marker} {p['project']}{detail}")
+        print(f"\nSQLite knowledge graph is now active in all upgraded projects.")
+        print(f"Try: `aihelper graph status` or `aihelper graph callers --symbol main`")
+    return 0
+
+
+def _handle_graph(argv: list, graph_parser: Any) -> int:
+    """Handle graph query subcommands (v0.0.7)."""
+    import json as _json
+    from pathlib import Path as _Path
+
+    try:
+        from .graph_query import (
+            handle_callers, handle_callees, handle_trace,
+            handle_impact, handle_explore
+        )
+        from .graph_db import get_db
+    except ImportError:
+        from graph_query import (
+            handle_callers, handle_callees, handle_trace,
+            handle_impact, handle_explore
+        )
+        from graph_db import get_db
+
+    args = graph_parser.parse_args(argv[1:])
+    cmd = getattr(args, 'graph_command', None)
+    root = _Path(args.project_root).resolve() if args.project_root else _Path.cwd()
+
+    if cmd == "status":
+        db = get_db(root)
+        result = db.get_stats()
+    elif cmd == "callers":
+        if not args.symbol:
+            print("Error: --symbol required for callers", file=__import__('sys').stderr)
+            return 1
+        result = handle_callers({"symbol": args.symbol, "depth": args.depth or 1}, root)
+    elif cmd == "callees":
+        if not args.symbol:
+            print("Error: --symbol required for callees", file=__import__('sys').stderr)
+            return 1
+        result = handle_callees({"symbol": args.symbol, "depth": args.depth or 1}, root)
+    elif cmd == "trace":
+        if not args.from_sym or not args.to_sym:
+            print("Error: --from AND --to required for trace", file=__import__('sys').stderr)
+            return 1
+        result = handle_trace({"from": args.from_sym, "to": args.to_sym}, root)
+    elif cmd == "impact":
+        if not args.symbol:
+            print("Error: --symbol required for impact", file=__import__('sys').stderr)
+            return 1
+        result = handle_impact({"symbol": args.symbol, "depth": args.depth or 3}, root)
+    elif cmd == "explore":
+        if not args.query:
+            print("Error: --query required for explore", file=__import__('sys').stderr)
+            return 1
+        result = handle_explore({"query": args.query, "max_files": args.max_files}, root)
+    else:
+        print(f"Unknown graph command: {cmd}", file=__import__('sys').stderr)
+        return 1
+
+    if bool(getattr(args, 'json', False)):
+        print(_json.dumps(result, indent=2, ensure_ascii=False))
+    else:
+        print(_json.dumps(result, indent=2, ensure_ascii=False))
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Portable AI helper that reads the current project's ai indexes and returns feature-aware execution context."
@@ -771,6 +941,35 @@ def main() -> int:
     warmup_parser.add_argument("--extra-project", action="append", default=[])
     warmup_parser.add_argument("--json", "-json", action="store_true", default=False, help=argparse.SUPPRESS)
 
+    # ── Graph Query Tools (v0.0.7) ────────────────────────────────────
+    graph_parser = subparsers.add_parser("graph", help="SQLite knowledge graph queries.")
+    graph_sub = graph_parser.add_subparsers(dest="graph_command")
+    for cmd in ("callers", "callees", "trace", "impact", "explore", "status"):
+        sp = graph_sub.add_parser(cmd)
+        sp.add_argument("--symbol", default=None)
+        sp.add_argument("--from", dest="from_sym", default=None)
+        sp.add_argument("--to", dest="to_sym", default=None)
+        sp.add_argument("--query", default=None)
+        sp.add_argument("--depth", type=int, default=None)
+        sp.add_argument("--max-files", type=int, default=8)
+        sp.add_argument("--project-root", default=None)
+        sp.add_argument("--json", "-json", action="store_true", default=False, help=argparse.SUPPRESS)
+
+    # ── Upgrade (v0.0.7) ──────────────────────────────────────────────
+    upgrade_parser = subparsers.add_parser("upgrade", help="Auto-upgrade all visible projects to latest aihelper version.")
+    upgrade_parser.add_argument("--github-root", default="$HOME/github")
+    upgrade_parser.add_argument("--extra-project", action="append", default=[])
+    upgrade_parser.add_argument("--json", "-json", action="store_true", default=False, help=argparse.SUPPRESS)
+
+    # ── Affected (v0.0.7) ────────────────────────────────────────────
+    affected_parser = subparsers.add_parser("affected", help="Find test files affected by changed source files.")
+    affected_parser.add_argument("files", nargs="*", default=[], help="Changed source files")
+    affected_parser.add_argument("--stdin", action="store_true", help="Read file list from stdin")
+    affected_parser.add_argument("-d", "--depth", type=int, default=5, help="Max dependency traversal depth")
+    affected_parser.add_argument("-f", "--filter", help="Custom glob to identify test files")
+    affected_parser.add_argument("--project-root", default=None)
+    affected_parser.add_argument("--json", "-json", action="store_true", default=False, help=argparse.SUPPRESS)
+
     argv = sys.argv[1:]
     known_commands = {
         "analyze",
@@ -798,6 +997,9 @@ def main() -> int:
         "classify_op",
         "degradation",
         "warmup",
+        "graph",
+        "upgrade",
+        "affected",
         "persist",
         "restore",
         "feedback",
@@ -1271,6 +1473,15 @@ def main() -> int:
         else:
             print(render_markdown("Warmup", result))
         return 0
+
+    if argv[0] == "upgrade":
+        return _handle_upgrade(argv, upgrade_parser)
+
+    if argv[0] == "affected":
+        return _handle_affected_cli(argv, affected_parser)
+
+    if argv[0] == "graph":
+        return _handle_graph(argv, graph_parser)
 
     if argv[0] == "structural-diff":
         args = sdiff_parser.parse_args(argv[1:])
