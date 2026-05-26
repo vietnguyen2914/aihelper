@@ -104,6 +104,8 @@ if ($PythonCmd) {
     & (Join-Path $RepoRoot "bin/aihelper.ps1") cache build --project-root $RepoRoot
     & (Join-Path $RepoRoot "bin/aihelper.ps1") daemon start
     & (Join-Path $RepoRoot "bin/aihelper.ps1") doctor
+    Write-Host "  Generating per-project agent configs..."
+    & (Join-Path $RepoRoot "bin/aihelper.ps1") init-config
 }
 
 if ($HasError) {

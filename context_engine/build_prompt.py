@@ -35,13 +35,13 @@ def rewrite_prompt(
     )
 
 
-def build_prompt(user_prompt: str, context: Dict[str, Any] | str) -> str:
+def build_prompt(user_prompt: str, context: Dict[str, Any] | str, max_total_chars: int = 0) -> str:
     if not isinstance(context, str):
         context = json.dumps(context, indent=2, ensure_ascii=False)
     target_root = ""
     if isinstance(context, str) and '"target_root"' in context:
         target_root = "You are working on the current target repository selected by the launcher.\n\n"
-    return (
+    result = (
         f"{target_root}"
         "Context:\n"
         f"{context}\n\n"
@@ -52,4 +52,17 @@ def build_prompt(user_prompt: str, context: Dict[str, Any] | str) -> str:
         "- Prefer minimal, deterministic changes with validation steps.\n\n"
         f"Task: {user_prompt}\n"
     )
+
+    if max_total_chars > 0 and len(result) > max_total_chars:
+        # Rebuild with truncated context
+        wrapper_prefix = f"{target_root}Context:\n"
+        wrapper_suffix = "\n\nRules:\n- Prioritize business features over modules.\n- Respect ext overrides and custom overrides before generated/base behavior.\n- Follow existing flows and keep integrations stable.\n- Prefer minimal, deterministic changes with validation steps.\n\n"
+        wrapper_suffix += f"Task: {user_prompt}\n"
+
+        available = max_total_chars - len(wrapper_prefix) - len(wrapper_suffix)
+        if available > 100:
+            truncated_context = context[:available] + "\n... [context truncated to fit token budget]"
+            result = f"{wrapper_prefix}{truncated_context}{wrapper_suffix}"
+
+    return result
 

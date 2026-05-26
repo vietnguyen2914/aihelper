@@ -84,6 +84,11 @@ aihelper capability-rerank       # Document reranking
 aihelper capability-embed        # Text embeddings
 ```
 
+## Setup & Config
+```bash
+aihelper init-config          # Generate per-project agent configs (.github/copilot-instructions.md)
+```
+
 ## Bootstrap
 ```bash
 bash scripts/bootstrap.sh        # Prerequisites + env setup

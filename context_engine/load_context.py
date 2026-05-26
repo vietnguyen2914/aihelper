@@ -116,7 +116,7 @@ def _service_context(service: Dict[str, Path | str], feature_names: List[str]) -
 
 def load_context_bundle(
     ranked_features: List[Dict[str, Any]],
-    max_chars: int = 12000,
+    max_chars: int = 6000,
     root: Path | None = None,
 ) -> Dict[str, Any]:
     root = root or project_root()
@@ -176,7 +176,7 @@ def load_context_bundle(
     }
 
 
-def load_context(feature_names: List[str], max_chars: int = 12000, root: Path | None = None) -> str:
+def load_context(feature_names: List[str], max_chars: int = 6000, root: Path | None = None) -> str:
     root = root or project_root()
     ranked = [{"service": root.name, "feature": name} for name in feature_names]
     return json.dumps(load_context_bundle(ranked, max_chars=max_chars, root=root), indent=2, ensure_ascii=False)

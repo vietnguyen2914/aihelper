@@ -139,3 +139,19 @@ Use telemetry to identify slow paths:
 | Offline | Yes | No |
 
 aihelper is **local-first**: core runtime works offline. Cloud is only for complex reasoning tasks.
+
+## Next Steps
+
+After local setup is complete:
+
+```bash
+# Generate per-project agent configs (token budget rules, editor integration)
+aihelper init-config
+
+# Then on any project
+cd /path/to/your/project
+aihelper cache build
+aihelper route "your task"
+```
+
+`aihelper init-config` generates `.github/copilot-instructions.md` for every Git repository on your machine — this tells all agents (Claude, Gemini, DeepSeek, Codex, Copilot, Ollama) to use aihelper context compression automatically.

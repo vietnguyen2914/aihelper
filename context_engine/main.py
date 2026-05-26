@@ -190,7 +190,7 @@ def render_analyze_markdown(result: Dict[str, Any]) -> str:
 
 def analyze_request(
     user_prompt: str,
-    max_context_chars: int = 12000,
+    max_context_chars: int = 6000,
     root: Path | None = None,
     auto_update_kb: bool = False,
 ) -> Dict[str, Any]:
@@ -325,6 +325,17 @@ def analyze_request(
     context["token_budget"] = route.get("token_budget", {})
     rewritten = rewrite_prompt(user_prompt, intent, feature_matches, context)
     final_prompt = build_prompt(user_prompt, context)
+
+    # Enforce token budget: if token_budget says max_context_tokens,
+    # convert to chars (conservatively: 1 token ≈ 2.5 chars for code)
+    budget = route.get("token_budget", {})
+    max_tokens = budget.get("max_context_tokens", 6000)
+    max_chars_budget = max_tokens * 4  # generous: 1 token ≈ 4 chars for Asian text
+    if len(final_prompt) > max_chars_budget:
+        # Rebuild prompt with tighter context limit
+        tighter_limit = max(500, max_chars_budget - 1000)  # leave room for wrappers
+        context = load_context_bundle(feature_matches, max_chars=tighter_limit, root=root)
+        final_prompt = build_prompt(user_prompt, context, max_total_chars=max_chars_budget)
 
     try:
         from .planner import build_execution_plan
@@ -489,7 +500,7 @@ def main() -> int:
 
     analyze_parser = subparsers.add_parser("analyze", help="Analyze a raw prompt.")
     analyze_parser.add_argument("user_prompt", nargs="?", help="The raw user request to analyze.")
-    analyze_parser.add_argument("--max-context-chars", type=int, default=12000)
+    analyze_parser.add_argument("--max-context-chars", type=int, default=6000)
     analyze_parser.add_argument("--auto-update-kb", action="store_true")
     analyze_parser.add_argument("--project-root", default=None)
     analyze_parser.add_argument("--json", "-json", action="store_true", default=False, help=argparse.SUPPRESS)
