@@ -30,6 +30,7 @@ Usage:
   aihelper ollama health
   aihelper ollama prewarm [--model-type tiny|medium|large]
   aihelper daemon start|stop|status
+  aihelper init-config                    Generate local agent configs (.github/copilot-instructions.md, Codex, VS Code)
   aihelper doctor
   aihelper editor-context
   aihelper lsp definition|references|symbols <file>
@@ -150,6 +151,10 @@ case "$1" in
       run_analyze "$@"
     fi
     exec python3 "$SCRIPT_DIR/../context_engine/main.py" "$@"
+    ;;
+  init-config)
+    shift
+    exec bash "$SCRIPT_DIR/../scripts/init-config.sh" "$@"
     ;;
   *)
     run_analyze "$@"

@@ -26,7 +26,10 @@ cd aihelper
 # 2. Bootstrap (auto: deps, cache, daemon)
 bash scripts/bootstrap.sh
 
-# 3. Use on any project
+# 3. Generate per-project agent configs (token budget rules for all editors)
+./bin/aihelper init-config
+
+# 4. Use on any project
 cd /path/to/your/project
 aihelper cache build
 aihelper route "fix bug"
@@ -74,6 +77,9 @@ pip install -r requirements.txt
 # 6. Verify
 ./bin/aihelper doctor
 ./bin/aihelper daemon status
+
+# 7. Generate per-project configs
+./bin/aihelper init-config
 ```
 
 **Hot-tier models** (recommended, adds ~10GB):
@@ -106,6 +112,8 @@ This pulls all models:
 | `minicpm-v:latest` | 3.1GB | Vision, screenshot analysis |
 | `nomic-embed-text:latest` | 274MB | Fast embeddings |
 | `bge-m3:latest` | 2.2GB | High-quality embeddings |
+
+> After bootstrap, run `aihelper init-config` to generate `.github/copilot-instructions.md` for every Git repository on your machine — this tells all agents (Claude, Gemini, DeepSeek, Codex, Copilot, Ollama) to use aihelper context compression.
 
 Additionally installs optional tools:
 
@@ -229,7 +237,10 @@ git clone https://github.com/vietnguyen2914/aihelper.git
 cd aihelper
 powershell -ExecutionPolicy Bypass -File scripts/bootstrap.ps1
 
-# 3. Use on any project
+# 3. Generate per-project agent configs (token budget rules for all editors)
+./bin/aihelper init-config
+
+# 4. Use on any project
 cd C:\path\to\your\project
 <path-to-aihelper>\bin\aihelper.ps1 cache build
 <path-to-aihelper>\bin\aihelper.ps1 route "fix bug"

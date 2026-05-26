@@ -61,12 +61,12 @@ def token_budget(task: str) -> Dict[str, int | str]:
     if tokens & REALTIME_WORDS:
         return {"max_context_tokens": 1000, "mode": "realtime"}
     if tokens & ARCH_WORDS:
-        return {"max_context_tokens": 12000, "mode": "architecture"}
+        return {"max_context_tokens": 8000, "mode": "architecture"}
     if tokens & DEBUG_WORDS:
-        return {"max_context_tokens": 8000, "mode": "debug"}
+        return {"max_context_tokens": 5000, "mode": "debug"}
     if tokens & PATCH_WORDS:
         return {"max_context_tokens": 4000, "mode": "patch"}
-    return {"max_context_tokens": 6000, "mode": "default"}
+    return {"max_context_tokens": 4000, "mode": "default"}
 
 
 def route_task(task: str, project_root: Path | None = None, max_symbols: int = 8) -> Dict[str, Any]:

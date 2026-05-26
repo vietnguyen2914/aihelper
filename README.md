@@ -79,7 +79,10 @@ bash scripts/bootstrap.sh
 # 3. Verify installation
 ./bin/aihelper doctor
 
-# 4. Use on any project
+# 4. Generate per-project agent configs
+aihelper init-config
+
+# 5. Use on any project
 cd /path/to/your/project
 aihelper cache build
 aihelper route "fix payment bug"
@@ -200,6 +203,7 @@ Full reference: [docs/commands.md](docs/commands.md)
 ### Core (get started fast)
 ```bash
 aihelper doctor                  # Verify installation
+aihelper init-config             # Generate agent configs for all Git repos
 aihelper cache build             # Index your project
 aihelper route "fix bug"         # Route task to optimal tools
 aihelper daemon start            # Zero-latency background runtime

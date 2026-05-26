@@ -20,10 +20,13 @@ This repository is designed so AI agents can discover a project, build a knowled
 
 ## Codex Fast Path
 
+> **Before first use:** Run `aihelper init-config` to generate `.github/copilot-instructions.md` for every Git repository — this ensures all agents apply aihelper token budget rules.
+
+
 Use aihelper to produce a compact, feature-aware prompt before asking Codex to inspect broad code:
 
 ```bash
-/Users/vietnguyen/github/aihelper/bin/aihelper analyze "<task>" --format prompt --max-context-chars 6000
+aihelper analyze "<task>" --format prompt --max-context-chars 6000
 ```
 
 Keep local LLM calls on the discovery path only. Deterministic index routing is the default because it is much faster and avoids spending local model time on repeated keyword normalization.
@@ -31,13 +34,13 @@ Keep local LLM calls on the discovery path only. Deterministic index routing is 
 Build and reuse the local cache when a repo will be inspected repeatedly:
 
 ```bash
-/Users/vietnguyen/github/aihelper/bin/aihelper cache build --project-root <repo>
-/Users/vietnguyen/github/aihelper/bin/aihelper cache watch --project-root <repo>
-/Users/vietnguyen/github/aihelper/bin/aihelper cache warm --project-root <repo>
-/Users/vietnguyen/github/aihelper/bin/aihelper prompt-blocks build --project-root <repo>
-/Users/vietnguyen/github/aihelper/bin/aihelper diff-summary --project-root <repo>
-/Users/vietnguyen/github/aihelper/bin/aihelper symbol find "<symbol>" --project-root <repo>
-/Users/vietnguyen/github/aihelper/bin/aihelper route "<task>" --project-root <repo>
+aihelper cache build --project-root <repo>
+aihelper cache watch --project-root <repo>
+aihelper cache warm --project-root <repo>
+aihelper prompt-blocks build --project-root <repo>
+aihelper diff-summary --project-root <repo>
+aihelper symbol find "<symbol>" --project-root <repo>
+aihelper route "<task>" --project-root <repo>
 ```
 
 Use the router result to choose targeted reads and the right model tier. Treat filesystem MCP as exact-path fallback; use `rg`, `fd`, symbol lookup, and compact prompts for normal coding discovery.
@@ -45,9 +48,9 @@ Use the router result to choose targeted reads and the right model tier. Treat f
 For edits, prefer this order:
 
 ```bash
-/Users/vietnguyen/github/aihelper/bin/aihelper patch-plan "<task>" --file <path>
-/Users/vietnguyen/github/aihelper/bin/aihelper patch-apply --patch-file <diff> --project-root <repo>
-/Users/vietnguyen/github/aihelper/bin/aihelper validate-files <path> --project-root <repo>
+aihelper patch-plan "<task>" --file <path>
+aihelper patch-apply --patch-file <diff> --project-root <repo>
+aihelper validate-files <path> --project-root <repo>
 ```
 
 `patch-apply` is dry-run by default. Use Codex `apply_patch` for live edits in Codex sessions, or pass `--apply` only from trusted local automation.
@@ -57,13 +60,14 @@ For edits, prefer this order:
 Editors and agents can expose aihelper as an MCP server:
 
 ```bash
-python3 /Users/vietnguyen/github/aihelper/context_engine/mcp_server.py
+# Replace with your actual aihelper path, e.g.:
+python3 /path/to/aihelper/context_engine/mcp_server.py
 ```
 
 The primary MCP tool is `aihelper_context`. It returns the same compact prompt as:
 
 ```bash
-/Users/vietnguyen/github/aihelper/bin/aihelper analyze "<task>" --format prompt --max-context-chars 6000
+aihelper analyze "<task>" --format prompt --max-context-chars 6000
 ```
 
 Additional MCP tools are available for token-efficient routing:
