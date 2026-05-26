@@ -320,6 +320,44 @@ def handle_context(params: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+# ── Graph Query Handlers (v0.0.7) ─────────────────────────────────
+
+def handle_graph_callers(params: Dict[str, Any]) -> Dict[str, Any]:
+    from .graph_query import handle_callers
+    args = params.get("arguments", params)
+    return handle_callers(args, _resolve_project(params))
+
+
+def handle_graph_callees(params: Dict[str, Any]) -> Dict[str, Any]:
+    from .graph_query import handle_callees
+    args = params.get("arguments", params)
+    return handle_callees(args, _resolve_project(params))
+
+
+def handle_graph_trace(params: Dict[str, Any]) -> Dict[str, Any]:
+    from .graph_query import handle_trace
+    args = params.get("arguments", params)
+    return handle_trace(args, _resolve_project(params))
+
+
+def handle_graph_impact(params: Dict[str, Any]) -> Dict[str, Any]:
+    from .graph_query import handle_impact
+    args = params.get("arguments", params)
+    return handle_impact(args, _resolve_project(params))
+
+
+def handle_graph_explore(params: Dict[str, Any]) -> Dict[str, Any]:
+    from .graph_query import handle_explore
+    args = params.get("arguments", params)
+    return handle_explore(args, _resolve_project(params))
+
+
+def handle_graph_status(params: Dict[str, Any]) -> Dict[str, Any]:
+    from .graph_db import get_db
+    db = get_db(_resolve_project(params))
+    return db.get_stats()
+
+
 # ── Method Router ─────────────────────────────────────────────────
 
 # External handlers loaded lazily
@@ -455,6 +493,12 @@ def _get_methods() -> Dict[str, Callable]:
         "persist_status": handle_persist_status,
         "patch_plan": handle_patch_plan,
         "context": handle_context,
+        "graph_callers": handle_graph_callers,
+        "graph_callees": handle_graph_callees,
+        "graph_trace": handle_graph_trace,
+        "graph_impact": handle_graph_impact,
+        "graph_explore": handle_graph_explore,
+        "graph_status": handle_graph_status,
         **_external_handlers,
     }
 

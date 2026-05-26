@@ -397,6 +397,115 @@ def _watchman_changed_files(project_root: Path, since: str | None = None) -> Dic
     }
 
 
+def _sync_cache_to_sqlite(project_root: Path, file_index: Dict, symbol_graph: Dict, dependency_graph: Dict) -> None:
+    """Sync JSON cache → SQLite for graph queries (v0.0.7)."""
+    from .graph_db import get_db
+    import time
+    import hashlib
+
+    db = get_db(project_root)
+    now = time.time()
+
+    # Files
+    for f in file_index.get("files", []):
+        path = f.get("path", "")
+        if not path:
+            continue
+        language = f.get("language", "unknown")
+        if not language or language == "unknown":
+            suffix = Path(path).suffix.lower()
+            lang_map = {".py": "python", ".js": "javascript", ".ts": "typescript",
+                        ".tsx": "tsx", ".java": "java", ".go": "go", ".rs": "rust",
+                        ".php": "php", ".c": "c", ".cpp": "cpp", ".rb": "ruby",
+                        ".swift": "swift", ".kt": "kotlin", ".cs": "csharp",
+                        ".sql": "sql", ".json": "json", ".yml": "yaml", ".yaml": "yaml",
+                        ".md": "markdown"}
+            language = lang_map.get(suffix, "unknown")
+        db.upsert_file(
+            path=path,
+            content_hash=f.get("semantic_sha1", ""),
+            language=language,
+            size=f.get("size", 0),
+            modified_at=f.get("mtime", now),
+            node_count=0,
+        )
+
+    # Symbols
+    symbols_list = []
+    for sym in symbol_graph.get("symbols", []):
+        name = sym.get("name", "")
+        fpath = sym.get("file", "")
+        if not name or not fpath:
+            continue
+        sym_id = f"{fpath}::{name}"
+        symbols_list.append({
+            "id": sym_id,
+            "kind": sym.get("kind", "unknown"),
+            "name": name,
+            "qualified_name": sym_id,
+            "file_path": fpath,
+            "language": _detect_language(fpath),
+            "start_line": sym.get("line", 1),
+            "end_line": sym.get("line", 1),
+            "signature": sym.get("signature", ""),
+            "fingerprint": sym.get("fingerprint", ""),
+        })
+    if symbols_list:
+        db.insert_symbols_batch(symbols_list)
+
+    # Edges — map file-level imports to symbol + file nodes
+    edges_list = []
+    for edge in dependency_graph.get("edges", []):
+        from_file = edge.get("from", "")
+        to_file = edge.get("to", "")
+        if not from_file or not to_file:
+            continue
+        # File-level edge: from_file imports to_file
+        edges_list.append({
+            "source": from_file,
+            "target": to_file,
+            "kind": "imports",
+            "provenance": "regex",
+        })
+    # Also insert file-level nodes so FK constraint passes
+    file_ids = set()
+    for e in edges_list:
+        file_ids.add(e["source"])
+        file_ids.add(e["target"])
+    # Ensure file nodes exist
+    for fid in file_ids:
+        try:
+            db.insert_symbols_batch([{
+                "id": fid, "kind": "file",
+                "name": fid.split("/")[-1] if "/" in fid else fid,
+                "qualified_name": fid, "file_path": fid,
+                "language": _detect_language(fid),
+                "start_line": 1, "end_line": 1,
+                "fingerprint": hashlib.sha1(fid.encode()).hexdigest(),
+            }])
+        except Exception:
+            pass
+    if edges_list:
+        try:
+            db.insert_edges_batch(edges_list)
+        except Exception:
+            pass  # FK may fail for external imports
+
+
+def _detect_language(file_path: str) -> str:
+    suffix = Path(file_path).suffix.lower()
+    lang_map = {".py": "python", ".js": "javascript", ".mjs": "javascript",
+                ".ts": "typescript", ".tsx": "tsx", ".java": "java",
+                ".go": "go", ".rs": "rust", ".php": "php",
+                ".c": "c", ".h": "c", ".cpp": "cpp", ".cc": "cpp", 
+                ".hpp": "cpp", ".rb": "ruby", ".swift": "swift",
+                ".kt": "kotlin", ".kts": "kotlin", ".cs": "csharp",
+                ".lua": "lua", ".dart": "dart", ".sql": "sql",
+                ".json": "json", ".yml": "yaml", ".yaml": "yaml",
+                ".md": "markdown", ".vue": "vue", ".svelte": "svelte"}
+    return lang_map.get(suffix, "unknown")
+
+
 def build_cache(project_root: Path) -> Dict[str, Any]:
     project_root = project_root.resolve()
     paths = cache_paths(project_root)
@@ -440,6 +549,14 @@ def build_cache(project_root: Path) -> Dict[str, Any]:
     safe_write_json(paths["dependency_graph"], dependency_graph)
     safe_write_json(paths["db_schema_summary"], db_schema_summary)
     safe_write_json(paths["manifest"], manifest)
+
+    # ── Sync to SQLite (v0.0.7) ─────────────────────────────────
+    try:
+        _sync_cache_to_sqlite(project_root, file_index, symbol_graph, dependency_graph)
+        manifest["sqlite_synced"] = True
+    except Exception:
+        manifest["sqlite_synced"] = False
+
     return {"manifest": manifest, "cache_dir": str(paths["root"])}
 
 

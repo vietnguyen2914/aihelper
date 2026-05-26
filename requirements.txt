@@ -1,6 +1,22 @@
-# aihelper core — no external dependencies required
-# All functionality uses Python stdlib
-# Optional extras:
+# aihelper core — zero mandatory dependencies (all stdlib)
+# The following are optional, auto-installed by bootstrap.sh --full
+
+# ── Tree-sitter AST extraction (v0.0.7 default) ──────────────────
+tree-sitter>=0.21.0
+tree-sitter-python>=0.21.0
+tree-sitter-javascript>=0.21.0
+tree-sitter-typescript>=0.21.0
+tree-sitter-java>=0.21.0
+tree-sitter-go>=0.21.0
+tree-sitter-rust>=0.21.0
+tree-sitter-php>=0.21.0
+tree-sitter-c>=0.21.0
+tree-sitter-cpp>=0.21.0
+
+# ── File watcher ─────────────────────────────────────────────────
+watchdog>=4.0.0
+
+# ── Optional: multimodals ─────────────────────────────────────────
 # sentence-transformers   # For reranker (bge-reranker-v2-m3)
 # docling                # For document parsing
 # paddleocr              # For OCR
