@@ -1,0 +1,13 @@
+{
+  "github.copilot.enable": true,
+  "github.copilot.autocomplete.enable": true,
+  "github.copilot.inlineSuggest.enable": true,
+  "github.copilot.chat.codeGeneration.instructions": [
+    {
+      "file": "/Users/vietnguyen/.github/copilot-instructions.md"
+    },
+    {
+      "file": "/Users/vietnguyen/github/aihelper/.github/copilot-instructions.md"
+    }
+  ]
+}

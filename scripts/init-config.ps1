@@ -72,6 +72,33 @@ function Write-IfChanged {
     Log "OK" "  Written: $FilePath"
 }
 
+function Run-IntegrationScript {
+    param([string]$ScriptName, [string[]]$ScriptArgs)
+    $scriptPath = Join-Path $RepoRoot "scripts" $ScriptName
+    $pyArgs = @()
+    if ($DryRun) {
+        $pyArgs += "--dry-run"
+    }
+    $pyArgs += $ScriptArgs
+    $pythonCmd = if (Get-Command python -ErrorAction SilentlyContinue) { "python" } else { "python3" }
+    if ($DryRun) {
+        Write-Host "  [DRY-RUN] Would run: $pythonCmd $scriptPath $($pyArgs -join ' ')"
+        return
+    }
+    if (-not (Test-Path $scriptPath)) {
+        Log "WARN" "  Script not found: $scriptPath"
+        return
+    }
+    try {
+        & $pythonCmd $scriptPath @pyArgs
+        if ($LASTEXITCODE -ne 0) {
+            Log "WARN" "  Integration script exited with code $LASTEXITCODE: $ScriptName"
+        }
+    } catch {
+        Log "WARN" "  Integration script failed: $ScriptName -- $_"
+    }
+}
+
 function Is-ValidProject {
     param([string]$Dir)
     if (-not (Test-Path $Dir)) { return $false }
@@ -250,27 +277,25 @@ $extraRules
     Write-IfChanged $projFile $projContent
 }
 
-# ── VS Code settings ──
-$vscodeSettings = Join-Path $env:APPDATA "Code" "User" "settings.json"
-if (Test-Path $vscodeSettings) {
-    try {
-        $vscodeJson = Get-Content $vscodeSettings -Raw | ConvertFrom-Json
-        $instructionsKey = "github.copilot.chat.codeGeneration.instructions"
-        $instructionsValue = @(@{file = "~/.github/copilot-instructions.md"})
-        
-        $existing = $vscodeJson.$instructionsKey
-        if (-not $existing) {
-            $vscodeJson | Add-Member -NotePropertyName $instructionsKey -NotePropertyValue $instructionsValue -Force
-            $vscodeJson | ConvertTo-Json -Depth 10 | Set-Content $vscodeSettings
-            Log "OK" "  Written: VS Code copilot instructions reference"
-        } else {
-            Log "SKIP" "  No change: VS Code already has copilot instructions"
-        }
-    } catch {
-        Log "WARN" "Could not update VS Code settings"
-    }
-} else {
-    Log "SKIP" "  VS Code not installed or settings not found"
+# ── Editor and agent integration scripts ──
+# Each script generates config for its target editor/agent.
+# All scripts are failsafe: they write configs even if the editor
+# is not installed, and skip if no changes are needed.
+
+# Per-project scripts (VS Code Copilot, Claude)
+foreach ($projDir in $Projects) {
+    Run-IntegrationScript "vscode-copilot-integration.py" @("--path", $projDir)
+}
+
+# Global/agent scripts (MCP config for editors)
+Run-IntegrationScript "codex-integration.py" @()
+Run-IntegrationScript "zed-integration.py" @()
+Run-IntegrationScript "gemini-integration.py" @()
+Run-IntegrationScript "opencode-integration.py" @()
+
+# Per-project scripts (Claude)
+foreach ($projDir in $Projects) {
+    Run-IntegrationScript "claude-integration.py" @("--path", $projDir)
 }
 
 # ── Optional registry ──

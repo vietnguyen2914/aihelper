@@ -19,6 +19,7 @@
 ## Integrations
 
 - [integrations/](./integrations/) — Editor MCP configs (Zed, Claude Desktop, VSCode, Gemini, OpenCode)
+- [integrations/editor-integration.md](./integrations/editor-integration.md) — On-demand VS Code/Copilot, Codex, Claude integration scripts
 
 ## Multimodal
 
