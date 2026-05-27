@@ -40,6 +40,7 @@ This project follows a lightweight release-note style. Dates use `YYYY-MM-DD`.
 - **Extended preference auto-detection**: 36 patterns across languages, databases, infra, architecture.
 - **Dynamic retrieval**: dispatch_knowledge(task_context=...) for targeted context filtering.
 - **Negative memory**: alternatives store rejection reasons as dicts with name and reason_rejected.
+- **Codex MCP registration fix**: `scripts/codex-integration.py` now calls `codex mcp add aihelper` to register the aihelper MCP server. Codex v0.133.0 manages MCP via CLI subcommand, not JSON files. Without this, Codex had aihelper instructions but no way to call the tools.
 
 ### Changed
 
@@ -47,6 +48,8 @@ This project follows a lightweight release-note style. Dates use `YYYY-MM-DD`.
 - `session_bootstrap.py`: Knowledge recall — merges project-specific + global knowledge.
 - `mcp_server.py`: 20 MCP tools (was 15).
 - `scripts/init-config.sh` and `init-config.ps1`: Auto-detect + dispatch section.
+- `scripts/codex-integration.py`: Added `_register_mcp_server()` — uses `codex mcp add aihelper` to register aihelper MCP server for Codex v0.133.0+
+- `docs/integrations/editor-integration.md`: Documented Codex MCP integration details (registration, verification, removal)
 
 ### Fixed
 
