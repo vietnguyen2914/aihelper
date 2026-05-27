@@ -246,7 +246,13 @@ def auto_restore_if_needed(project_root: Path) -> Dict:
                     cm = json.load(f)
                 persist_time = pm.get("persisted_at", "")
                 cache_time = cm.get("built_at", "")
-                if persist_time and cache_time and persist_time > cache_time:
+                # v0.1 fix: also verify persist files actually exist,
+                # not just timestamp comparison
+                has_persist_files = persist_dir.exists() and any(
+                    f.suffix == '.json' and f.name != 'persist_meta.json'
+                    for f in persist_dir.iterdir()
+                ) if persist_dir.exists() else False
+                if persist_time and cache_time and persist_time > cache_time and has_persist_files:
                     needs_restore = True
                     reason = "persist_newer_than_cache"
             except (json.JSONDecodeError, OSError):

@@ -281,6 +281,39 @@ def _lint_run(ctx: Dict, root: Path) -> Dict:
     return {"lint_ok": True, "issues": 0}
 
 
+def _telemetry_benchmark(ctx: Dict, root: Path) -> Dict:
+    """Generate telemetry-driven benchmark from real runtime metrics (v0.1)."""
+    try:
+        from .benchmark import generate_benchmark, format_benchmark_markdown
+        benchmark = generate_benchmark(root)
+        markdown = format_benchmark_markdown(benchmark)
+        return {
+            "benchmark": benchmark,
+            "markdown": markdown,
+            "system_state": benchmark.get("system_state", {}),
+            "runtime_metrics": benchmark.get("runtime_metrics", {}),
+        }
+    except Exception as e:
+        return {"benchmark": None, "markdown": "", "error": str(e)}
+
+
+def _telemetry_subagent_wiring(ctx: Dict, root: Path) -> Dict:
+    """Compile cognition package for sub-agent execution (v0.1)."""
+    try:
+        from .subagent_wiring import compile_cognition_package, generate_subagent_prompt
+        task = ctx.get("task", "")
+        target = ctx.get("target", task)
+        max_tokens = ctx.get("max_tokens", 2000)
+        package = compile_cognition_package(task, target, root, max_tokens)
+        prompt = generate_subagent_prompt(package)
+        return {
+            "cognition_package": package.to_dict() if hasattr(package, 'to_dict') else package,
+            "generated_prompt": prompt,
+        }
+    except Exception as e:
+        return {"cognition_package": None, "generated_prompt": "", "error": str(e)}
+
+
 def _summary_generate(ctx: Dict, root: Path) -> Dict:
     parts = []
     if ctx.get("passed") is not None:
@@ -428,6 +461,19 @@ def build_registry() -> Dict[str, Primitive]:
             "lint.run", "Run linter checks",
             _lint_run, "lint",
             contract=_c(ok=["lint_ok", "issues"], cacheable=False, cost=10000.0, tokens=0),
+        ),
+        # ── Telemetry primitives (v0.1) ──────────────────────────
+        "telemetry.benchmark": Primitive(
+            "telemetry.benchmark", "Generate telemetry-driven benchmark report from real runtime metrics",
+            _telemetry_benchmark, "telemetry",
+            contract=_c(ok=["benchmark", "markdown", "system_state", "runtime_metrics"],
+                        cacheable=False, cost=50.0, tokens=0, purity="pure"),
+        ),
+        "telemetry.subagent_wiring": Primitive(
+            "telemetry.subagent_wiring", "Compile cognition package for sub-agent execution",
+            _telemetry_subagent_wiring, "telemetry",
+            contract=_c(ik=["task", "target"], ok=["cognition_package", "generated_prompt"],
+                        cacheable=True, cost=10.0, tokens=0, purity="pure"),
         ),
     }
 

@@ -1,5 +1,11 @@
 # aihelper — Local Project Instructions
 
+## File Writing — ALWAYS USE PYTHON
+- **Always use Python** (via `run-code` or `write_file` tools) for creating or modifying files — never use terminal heredocs, `cat` redirects, or MCP file writes
+- Python is orders of magnitude faster and avoids encoding/shell-escaping bugs
+- Prefer `write_file` tool for new files, `edit_file` tool for targeted patches
+- Only use terminal for reading/listing files, not writing them
+
 ## Context Budget
 - Use `aihelper context --max-context-chars 2000` for most tasks
 - Extend to `--max-context-chars 4000` only for multi-file changes
