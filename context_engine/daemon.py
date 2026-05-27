@@ -386,6 +386,10 @@ def _load_external_handlers() -> None:
         from .capability_router import handle_capability_route as _hcr, handle_capability_vision as _hcv, handle_capability_ocr as _hco2, handle_capability_rerank as _hcr2, handle_capability_embed as _hce
         from .document_pipeline import handle_generate_mermaid as _hgm, handle_render_diagram as _hrd, handle_generate_presentation as _hgp, handle_convert_document as _hcd, handle_parse_document as _hpd, handle_dbml_convert as _hdbc, handle_vega_chart as _hvc
         from .memory_engine import handle_knowledge_add_decision as _hkad, handle_knowledge_add_debug as _hkad2, handle_knowledge_set_preference as _hksp, handle_knowledge_recall as _hkr, handle_knowledge_dispatch as _hkd
+        from .workflow_engine import handle_workflow_run as _hwf
+        from .tier_router import handle_tier_route as _htr
+        from .verify import handle_verify as _hv
+        from .compressor import handle_compress_context as _hcc
         _external_handlers = {
             "editor_context": _hec,
             "lsp_definition": _hld,
@@ -426,6 +430,10 @@ def _load_external_handlers() -> None:
             "knowledge_set_preference": _hksp,
             "knowledge_recall": _hkr,
             "knowledge_dispatch": _hkd,
+            "workflow_run": _hwf,
+            "tier_route": _htr,
+            "verify": _hv,
+            "compress_context": _hcc,
         }
     except ImportError:
         from confidence import handle_confidence as _hc
@@ -445,6 +453,10 @@ def _load_external_handlers() -> None:
         from capability_router import handle_capability_route as _hcr, handle_capability_vision as _hcv, handle_capability_ocr as _hco2, handle_capability_rerank as _hcr2, handle_capability_embed as _hce
         from document_pipeline import handle_generate_mermaid as _hgm, handle_render_diagram as _hrd, handle_generate_presentation as _hgp, handle_convert_document as _hcd, handle_parse_document as _hpd, handle_dbml_convert as _hdbc, handle_vega_chart as _hvc
         from memory_engine import handle_knowledge_add_decision as _hkad, handle_knowledge_add_debug as _hkad2, handle_knowledge_set_preference as _hksp, handle_knowledge_recall as _hkr, handle_knowledge_dispatch as _hkd
+        from workflow_engine import handle_workflow_run as _hwf
+        from tier_router import handle_tier_route as _htr
+        from verify import handle_verify as _hv
+        from compressor import handle_compress_context as _hcc
         _external_handlers = {
             "editor_context": _hec,
             "lsp_definition": _hld,
@@ -485,6 +497,10 @@ def _load_external_handlers() -> None:
             "knowledge_set_preference": _hksp,
             "knowledge_recall": _hkr,
             "knowledge_dispatch": _hkd,
+            "workflow_run": _hwf,
+            "tier_route": _htr,
+            "verify": _hv,
+            "compress_context": _hcc,
         }
 
 def _get_methods() -> Dict[str, Callable]:

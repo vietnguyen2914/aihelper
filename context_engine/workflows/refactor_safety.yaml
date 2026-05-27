@@ -1,0 +1,46 @@
+name: "Refactor Safety"
+description: "Pre-refactor safety analysis: trace impact, classify risk, propose strategy"
+version: "1.0"
+
+phases:
+  - name: analyze_target
+    kind: deterministic
+    handler: analyze_target
+    description: "Trace symbol dependencies and callers"
+
+  - name: trace_callers
+    kind: deterministic
+    handler: trace_callers
+    description: "Find all callers of target"
+
+  - name: trace_callees
+    kind: deterministic
+    handler: trace_callees
+    description: "Find all callees of target"
+
+  - name: classify_risk
+    kind: deterministic
+    handler: classify_risk
+    description: "Classify refactor risk level"
+
+  - name: retrieve_memory
+    kind: deterministic
+    handler: retrieve_memory
+    description: "Retrieve past bugs related to target"
+
+  - name: refactor_strategy
+    kind: frontier
+    prompt_template: |
+      Plan a safe refactoring strategy.
+
+      Target: {target}
+      Callers ({caller_count}): {caller_list}
+      Callees ({callee_count}): {callee_list}
+      Risk level: {risk_level}
+      Historical bugs: {memories}
+
+      Propose:
+      1. Refactoring approach (extract, inline, rename, restructure)
+      2. Migration steps (ordered, safe)
+      3. Rollback plan
+      4. Testing strategy to minimize regression risk

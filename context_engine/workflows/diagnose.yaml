@@ -1,0 +1,43 @@
+name: "Diagnose Bug"
+description: "Disciplined diagnosis loop: reproduce → trace → inspect → hypothesize → fix → verify"
+version: "1.0"
+
+phases:
+  - name: analyze_target
+    kind: deterministic
+    handler: analyze_target
+    description: "Trace symbol dependencies and callers"
+
+  - name: retrieve_memory
+    kind: deterministic
+    handler: retrieve_memory
+    description: "Retrieve historical bugs related to this target"
+
+  - name: trace_callers
+    kind: deterministic
+    handler: trace_callers
+    description: "Trace all callers of the target symbol"
+
+  - name: trace_callees
+    kind: deterministic
+    handler: trace_callees
+    description: "Trace all callees of the target symbol"
+
+  - name: hypothesize_fix
+    kind: local_model
+    model: qwen3.5:4b-16k
+    prompt_template: |
+      You are diagnosing a bug.
+
+      Target: {target}
+      Callers: {caller_list}
+      Callees: {callee_list}
+      Historical bugs: {memories}
+
+      Based on this context, what is the most likely root cause?
+      Propose a fix with minimal code changes.
+
+  - name: verify_fix
+    kind: deterministic
+    handler: run_tests
+    description: "Run tests to verify the fix"

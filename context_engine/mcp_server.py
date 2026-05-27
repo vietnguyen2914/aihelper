@@ -370,6 +370,69 @@ def _knowledge_dispatch_schema() -> Dict[str, Any]:
     }
 
 
+def _workflow_run_schema() -> Dict[str, Any]:
+    return {
+        "name": "aihelper_workflow_run",
+        "description": "Execute a named workflow (tdd, diagnose, release-check, architecture-review, refactor-safety). Deterministic steps run locally, AI called only at decision points.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Workflow name"},
+                "params": {"type": "object", "description": "Workflow parameters"},
+                "project_root": {"type": "string", "description": "Target repository root"},
+            },
+            "required": ["name"],
+        },
+    }
+
+
+def _tier_route_schema() -> Dict[str, Any]:
+    return {
+        "name": "aihelper_tier_route",
+        "description": "Classify a task into the correct execution tier: deterministic, local_model, or frontier. Uses ambiguity scoring to decide when AI is needed.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "task": {"type": "string", "description": "Task description to classify"},
+                "project_root": {"type": "string", "description": "Target repository root"},
+            },
+            "required": ["task"],
+        },
+    }
+
+
+def _verify_schema() -> Dict[str, Any]:
+    return {
+        "name": "aihelper_verify",
+        "description": "Run verification checks: architecture, auth-safety, regression-risk, dependency-health. 100% deterministic, zero AI tokens.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "check": {"type": "string", "description": "Check name: architecture, auth-safety, regression-risk, dependency-health"},
+                "target": {"type": "string", "description": "Optional target symbol for regression-risk check"},
+                "project_root": {"type": "string", "description": "Target repository root"},
+            },
+            "required": ["check"],
+        },
+    }
+
+
+def _compress_context_schema() -> Dict[str, Any]:
+    return {
+        "name": "aihelper_compress_context",
+        "description": "Build a distilled cognition package for frontier models — compressed knowledge graph instead of raw files.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "question": {"type": "string", "description": "The question for the frontier model"},
+                "target": {"type": "string", "description": "Target symbol or module"},
+                "project_root": {"type": "string", "description": "Target repository root"},
+            },
+            "required": ["question"],
+        },
+    }
+
+
 def _tool_schemas() -> list[Dict[str, Any]]:
     return [
         _context_tool_schema(),
@@ -392,6 +455,10 @@ def _tool_schemas() -> list[Dict[str, Any]]:
         _knowledge_set_preference_schema(),
         _knowledge_recall_schema(),
         _knowledge_dispatch_schema(),
+        _workflow_run_schema(),
+        _tier_route_schema(),
+        _verify_schema(),
+        _compress_context_schema(),
     ]
 
 
@@ -583,6 +650,46 @@ def _call_tool(name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
             return _json_content(daemon_data)
         from .knowledge_dispatcher import dispatch_knowledge
         return _json_content(dispatch_knowledge(project_root=_target_root(arguments)))
+    # ── Workflow & Tier Tools (v0.0.9) ──────────────────────
+    if name == "aihelper_workflow_run":
+        daemon_data = _daemon_result("workflow_run", {
+            "name": str(arguments.get("name", "")),
+            "params": arguments.get("params", {}),
+            "project_root": str(_target_root(arguments)),
+        })
+        if daemon_data:
+            return _json_content(daemon_data)
+        from .workflow_engine import handle_workflow_run
+        return _json_content(handle_workflow_run(arguments))
+    if name == "aihelper_tier_route":
+        daemon_data = _daemon_result("tier_route", {
+            "task": str(arguments.get("task", "")),
+            "project_root": str(_target_root(arguments)),
+        })
+        if daemon_data:
+            return _json_content(daemon_data)
+        from .tier_router import handle_tier_route
+        return _json_content(handle_tier_route(arguments))
+    if name == "aihelper_verify":
+        daemon_data = _daemon_result("verify", {
+            "check": str(arguments.get("check", "")),
+            "target": str(arguments.get("target", "")),
+            "project_root": str(_target_root(arguments)),
+        })
+        if daemon_data:
+            return _json_content(daemon_data)
+        from .verify import handle_verify
+        return _json_content(handle_verify(arguments))
+    if name == "aihelper_compress_context":
+        daemon_data = _daemon_result("compress_context", {
+            "question": str(arguments.get("question", "")),
+            "target": str(arguments.get("target", "")),
+            "project_root": str(_target_root(arguments)),
+        })
+        if daemon_data:
+            return _json_content(daemon_data)
+        from .compressor import handle_compress_context
+        return _json_content(handle_compress_context(arguments))
     raise ValueError(f"unknown tool: {name}")
 
 

@@ -2,14 +2,22 @@
   "mapping": {
     "and": "context",
     "for": "cli",
-    "on": "front"
+    "on": "front",
+    "to": "learn",
+    "in": "post",
+    "the": "post"
   },
   "count": {
     "for": 3,
     "and": 3,
-    "to": 2,
+    "to": 3,
     "on": 3,
-    "in": 2,
-    "app": 2
+    "in": 3,
+    "app": 2,
+    "the": 3,
+    "with": 2,
+    "hinh": 2,
+    "of": 2,
+    "ui": 2
   }
 }
