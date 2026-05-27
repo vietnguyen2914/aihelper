@@ -63,6 +63,7 @@ class WorkflowEngine:
         self._handlers: Dict[str, Callable] = {}
         self._register_builtin_handlers()
         self._observability_enabled = True
+        self._primitive_cache: Dict[str, Dict[str, Any]] = {}
 
     def _register_builtin_handlers(self):
         """Register all deterministic handlers available in the runtime."""
@@ -208,25 +209,31 @@ class WorkflowEngine:
 
     def _execute_primitives(self, primitives: List[str], phase_def: Dict,
                             context: Dict) -> PhaseResult:
-        """Execute a list of named primitives from the registry."""
-        from .primitives import get_primitive
+        """Execute primitives with parallel DAG + caching."""
+        from .primitives import get_primitive, build_execution_dag
         combined_output = {}
         all_success = True
         errors = []
 
-        for prim_name in primitives:
-            prim = get_primitive(prim_name)
-            if prim is None:
-                all_success = False
-                errors.append(f"Unknown primitive: {prim_name}")
-                continue
-            try:
-                output = prim.execute(context, self.root)
-                combined_output.update(output)
-            except Exception as e:
-                all_success = False
-                errors.append(f"Primitive '{prim_name}' failed: {e}")
+        stages = build_execution_dag(primitives)
+        for stage in stages:
+            for prim_name in stage:
+                prim = get_primitive(prim_name)
+                if prim is None:
+                    all_success = False
+                    errors.append(f"Unknown primitive: {prim_name}")
+                    continue
+                try:
+                    output = prim.execute(context, self.root)
+                    combined_output.update(output)
+                    if prim.contract.cacheable:
+                        ck = f"{prim_name}:{prim.contract.fingerprint_inputs(context)}"
+                        self._primitive_cache[ck] = dict(output)
+                except Exception as e:
+                    all_success = False
+                    errors.append(f"Primitive '{prim_name}' failed: {e}")
 
+        combined_output["_profiling"] = {"stages": len(stages), "primitives": len(primitives)}
         return PhaseResult(
             phase=phase_def.get("name", "composed"),
             kind=PhaseKind.DETERMINISTIC,

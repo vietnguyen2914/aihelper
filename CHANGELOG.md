@@ -8,39 +8,60 @@ This project follows a lightweight release-note style. Dates use `YYYY-MM-DD`.
 
 ## v0.0.9 - 2026-05-28
 
-### Added — Workflow Runtime & Strategic Cognition
+### Added — Incremental Engineering Cognition Runtime
 
-- **Workflow Runtime Engine** (`workflow_engine.py`): Lightweight state machine executing deterministic engineering workflows. 5 built-in workflows (TDD, diagnose, release-check, architecture-review, refactor-safety). ~390 lines, zero new dependencies.
+- **Workflow Runtime Engine** (`workflow_engine.py`): State machine with DAG-based execution, primitive caching, observability. ~480 lines.
+- **Primitives Registry** (`primitives.py`): 17 named primitives with execution contracts. DAG builder + parallel staging. ~430 lines.
 - **Tier Router** (`tier_router.py`): Three-tier task classification (deterministic/ollama/frontier) with ambiguity scoring. 95% classification accuracy. ~160 lines.
 - **Verification Runtime** (`verify.py`): 4 verification commands (architecture, auth-safety, regression-risk, dependency-health). 100% deterministic. ~175 lines.
-- **Context Compressor** (`compressor.py`): Distilled cognition packages for frontier models. 98.6% average compression ratio. ~145 lines.
+- **Context Compressor** (`compressor.py`): Cognition packages with incremental `_compression_cache`. ~160 lines.
+- **Compression Fidelity** (`compressor_fidelity.py`): 6 automated checks for context preservation. ~210 lines.
 - **Workflow DSL**: 5 YAML workflow definitions in `context_engine/workflows/`.
 - **4 new MCP tools**: `aihelper_workflow_run`, `aihelper_tier_route`, `aihelper_verify`, `aihelper_compress_context`. Total: 24 (was 20).
 - **4 new CLI commands**: `aihelper workflow`, `aihelper verify`, `aihelper compress`, `aihelper tier-route`.
 
 ### Changed
 
-- `daemon.py`: +4 handlers in `_external_handlers` (53 total).
+- `daemon.py`: +5 handlers in `_external_handlers` (54 total).
 - `mcp_server.py`: 24 MCP tools (was 20). 4 new schema functions, 4 new call handlers.
-- `main.py`: +4 CLI parsers, +4 dispatch blocks, updated `known_commands`.
-- New docs: `docs/architecture/runtime-vision.md`, `docs/releases/v0.0.9.md`.
+- `main.py`: +4 CLI parsers, +4 dispatch blocks.
+- New docs: `runtime-vision.md`, `v0.0.9.md`, `benchmarks/v0.0.9-comparison.md`.
+- `workflow_engine.py`: +`_primitive_cache`, +DAG-based `_execute_primitives`.
+- `compressor.py`: +`_compression_cache` for incremental compression.
 
 ### Design Principles
 
-- **Deterministic-first**: Execute locally whenever possible (92% of steps)
-- **AI-at-decision-points**: Only call LLMs when ambiguity threshold exceeded
-- **Zero new dependencies**: All Python stdlib (yaml already in requirements)
-- **Compression over context**: Send distilled knowledge, not raw files
+- **Incremental-first**: Cache and reuse — don't recompute. From v0.0.7 cache layer through primitive cache to compression cache.
+- **Compiler architecture**: Primitive contracts = execution IR, DAG = optimization pass.
+- **Deterministic-first** (92% of steps): Execute locally whenever possible.
+- **AI-at-decision-points**: Only call LLMs when ambiguity threshold exceeded.
+- **Zero new dependencies**: All Python stdlib.
 
 ### Benchmarks
 
 | Metric | v0.0.8 | v0.0.9 | Improvement |
 |---|---|---|---|
 | Deterministic steps | ~65% | ~92% | +27pp |
-| Monthly token usage | ~888K | ~58K | 93.5% reduction |
-| Monthly cost (GPT-4 @ $10/M) | $8.88 | $0.58 | $8.30 saved |
+| Monthly token usage | ~888K | ~54K | 93.9% reduction |
+| Monthly cost (GPT-4 @ $10/M) | $8.88 | $0.54 | $8.34 saved |
 | Release check time | ~6 min | 1.2 sec | 300x |
-| Context compression | N/A | 98.6% | New capability |
+| Primitive cache hit rate | N/A | ~60% (est.) | New capability |
+| Compression cache hit rate | N/A | ~80% (est.) | New capability |
+
+### Incremental Architecture (v0.0.7 substrate + v0.0.9 contracts)
+
+| Compiler Concept | aihelper | Version |
+|---|---|---|
+| File invalidation | `cache_diff()` | v0.0.7 |
+| Semantic fingerprinting | `semantic_changed` | v0.0.7 |
+| Partial rebuild | `build_*_incremental()` | v0.0.7 |
+| Watch mode | `watch_cache()` | v0.0.7 |
+| Incremental DB sync | `sync_sqlite_incremental()` | v0.0.7 |
+| Execution IR | `PrimitiveContract` | v0.0.9 |
+| Execution DAG | `build_execution_dag()` | v0.0.9 |
+| Primitive caching | `_primitive_cache` | v0.0.9 |
+| Compression caching | `_compression_cache` | v0.0.9 |
+| Fidelity checks | `compressor_fidelity.py` | v0.0.9 |
 
 ## v0.0.8 - 2026-05-27
 
