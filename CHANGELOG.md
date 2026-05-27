@@ -6,6 +6,53 @@ This project follows a lightweight release-note style. Dates use `YYYY-MM-DD`.
 
 ## Unreleased
 
+## v0.1 - 2026-05-28
+
+### Kernel Hardening — Typed Execution & Semantic Invalidation
+
+**Zero new features. Pure integration.** Wires together the compiler-inspired modules
+that v0.0.9 introduced in isolation.
+
+- **Typed Execution Capabilities** (`primitives.py`): `PrimitiveContract` gains 4 immutable
+  capability fields — `purity` (pure/mutative), `determinism`, `invalidation_scope` (symbol/file/module/global),
+  `parallel_safe`. Smart defaults infer purity from `side_effects` and parallel_safe from purity.
+  Distribution: 14/17 pure, 14/17 parallel-safe.
+
+- **Optimizer Wired** (`optimizer.py` → `workflow_engine.py`): `optimize_dag()` now runs before
+  DAG staging in `_execute_primitives()`. Returns `OptimizationResult` with full profiling
+  (`applied_passes`, `folded_nodes`, `cache_hits`, `eliminated_nodes`, `estimated_speedup`).
+  Optimizer remains PURE — no filesystem, graph, or cache mutation.
+
+- **Semantic Invalidation Wired** (`invalidation.py` → `cache.py`): Every cache update
+  classifies file changes via `classify_change()` with `ChangeClassification` dataclass
+  carrying `semantic_confidence`. `should_propagate_invalidation()` makes call-graph-aware
+  decisions. High-risk modules (auth/security/payment) always propagate.
+
+- **Compression Confidence Decay** (`compressor.py` + `invalidation.py`): Weighted decay
+  replaces fixed thresholds. 7 decay rates (body_only=0.01 → branch_switch=0.40).
+  Recompression threshold at 0.60. Conservative 1.5× boost for high-risk modules.
+
+### Changed
+- `optimizer.py`: `optimize_dag()` returns `OptimizationResult` (was `List[str]`).
+  `constant_folding_pass()` now checks `is_pure` before caching. Fixed dedup eliminated_nodes tracking.
+- `workflow_engine.py`: `_execute_primitives()` calls optimizer before DAG staging.
+  Cache-hit skipping integrated. Optimizer stats in `_profiling`.
+- `cache.py`: `update_cache()` runs `_apply_semantic_invalidation()`. Returns `invalidation_report`.
+- `daemon.py`: +1 handler (`invalidation_classify`), 55 total (was 54).
+- `primitives.py`: `PrimitiveContract.to_dict()` includes typed capability fields.
+- `invalidation.py`: +230 lines — `ChangeClassification`, weighted decay table, high-risk detection,
+  `should_propagate_invalidation()`, `compute_semantic_confidence()`, `handle_invalidation_classify`.
+- `compressor.py`: +65 lines — `compression_confidence` tracking, `apply_compression_decay()`,
+  `force_recompress()`, `reset_compression_confidence()`.
+
+### Design Principles
+- **Harden the kernel** — No new features, pure integration
+- **Immutable capabilities** — Set at registration, never mutated at runtime
+- **Pure optimizer** — No filesystem, graph, or cache mutation
+- **Conservative invalidation** — High-risk modules always propagate
+- **Weighted decay** — Proportional to change severity
+- **Zero new dependencies** — All Python stdlib
+
 ## v0.0.9 - 2026-05-28
 
 ### Added — Incremental Engineering Cognition Runtime

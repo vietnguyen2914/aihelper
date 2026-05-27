@@ -209,13 +209,23 @@ class WorkflowEngine:
 
     def _execute_primitives(self, primitives: List[str], phase_def: Dict,
                             context: Dict) -> PhaseResult:
-        """Execute primitives with parallel DAG + caching."""
-        from .primitives import get_primitive, build_execution_dag
-        combined_output = {}
-        all_success = True
-        errors = []
+        """Execute primitives with optimization + parallel DAG + caching.
 
-        stages = build_execution_dag(primitives)
+        v0.1: Optimizer wired in — primitives are optimized before DAG staging.
+        OptimizationResult is included in output for profiling.
+        """
+        from .primitives import get_primitive, build_execution_dag
+        from .optimizer import optimize_dag
+
+        # ── v0.1: Optimize before execution ──
+        opt_result = optimize_dag(primitives, context, self._primitive_cache)
+        optimized_primitives = opt_result.optimized_dag
+
+        combined_output: Dict[str, Any] = {}
+        all_success = True
+        errors: List[str] = []
+
+        stages = build_execution_dag(optimized_primitives)
         for stage in stages:
             for prim_name in stage:
                 prim = get_primitive(prim_name)
@@ -223,17 +233,32 @@ class WorkflowEngine:
                     all_success = False
                     errors.append(f"Unknown primitive: {prim_name}")
                     continue
+
+                # Skip cache hits — result already known
+                if prim_name in opt_result.cache_hits:
+                    cache_key = f"{prim_name}:{prim.contract.fingerprint_inputs(context)}"
+                    if cache_key in self._primitive_cache:
+                        combined_output.update(self._primitive_cache[cache_key])
+                        continue
+
                 try:
                     output = prim.execute(context, self.root)
                     combined_output.update(output)
-                    if prim.contract.cacheable:
+                    if prim.contract.cacheable and prim.contract.is_pure:
                         ck = f"{prim_name}:{prim.contract.fingerprint_inputs(context)}"
                         self._primitive_cache[ck] = dict(output)
                 except Exception as e:
                     all_success = False
                     errors.append(f"Primitive '{prim_name}' failed: {e}")
 
-        combined_output["_profiling"] = {"stages": len(stages), "primitives": len(primitives)}
+        # ── v0.1: Include optimizer stats in profiling ──
+        combined_output["_profiling"] = {
+            "stages": len(stages),
+            "primitives_requested": len(primitives),
+            "primitives_executed": len(optimized_primitives),
+        }
+        combined_output["_optimizer"] = opt_result.to_dict()
+
         return PhaseResult(
             phase=phase_def.get("name", "composed"),
             kind=PhaseKind.DETERMINISTIC,

@@ -356,6 +356,66 @@ def sync_sqlite_incremental(project_root: Path, diff: Dict[str, Any],
             pass
 
 
+def _apply_semantic_invalidation(project_root: Path, diff: Dict[str, Any]) -> Dict[str, Any]:
+    """v0.1: Semantic invalidation — classify changes and decay compression confidence."""
+    report: Dict[str, Any] = {
+        "checked": 0, "body_only": 0, "signature_changes": 0,
+        "high_risk_hits": 0, "propagated": 0,
+        "confidence_decay_applied": 0.0, "details": [],
+    }
+    semantic_changed = diff.get("semantic_changed", [])
+    if not semantic_changed:
+        return report
+    try:
+        from .invalidation import (
+            classify_change, should_propagate_invalidation,
+            log_invalidation, get_weighted_decay,
+            _is_high_risk_module, RECOMPRESSION_THRESHOLD,
+        )
+    except ImportError:
+        return report
+    for rel_path in semantic_changed[:50]:
+        file_path = project_root / rel_path
+        if not file_path.exists():
+            continue
+        report["checked"] += 1
+        classification = classify_change(file_path)
+        should_prop, reason = should_propagate_invalidation(classification, str(file_path))
+        detail = {
+            "file": rel_path, "change_type": classification.change_type,
+            "confidence": classification.semantic_confidence,
+            "should_propagate": should_prop, "reason": reason,
+            "high_risk": _is_high_risk_module(str(file_path)),
+            "decay": get_weighted_decay(classification.change_type, str(file_path)),
+        }
+        report["details"].append(detail)
+        if classification.change_type == "signature_change":
+            report["signature_changes"] += 1
+            log_invalidation("signature_change_detected", rel_path,
+                f"confidence={classification.semantic_confidence}",
+                "info" if classification.semantic_confidence > 0.8 else "warn")
+        elif classification.change_type == "body_only_change":
+            report["body_only"] += 1
+        if should_prop:
+            report["propagated"] += 1
+            log_invalidation("propagating_invalidation", rel_path, reason, "warn")
+        if _is_high_risk_module(str(file_path)):
+            report["high_risk_hits"] += 1
+        report["confidence_decay_applied"] += get_weighted_decay(classification.change_type, str(file_path))
+    try:
+        from .compressor import apply_compression_decay
+        if report["signature_changes"] > 0 or report["body_only"] > 0:
+            change_type = "signature_change" if report["signature_changes"] > report["body_only"] else "body_only_change"
+            decay_result = apply_compression_decay(change_type, change_count=report["checked"], project_root=project_root)
+            report["compression_confidence"] = decay_result
+            if decay_result.get("needs_recompression"):
+                log_invalidation("compression_confidence_low", str(project_root),
+                    f"confidence={decay_result['new_confidence']}", "error")
+    except Exception:
+        pass
+    return report
+
+
 def update_cache(project_root: Path) -> Dict[str, Any]:
     """Incremental cache update — only rebuilds data for changed files.
 
@@ -363,6 +423,8 @@ def update_cache(project_root: Path) -> Dict[str, Any]:
     - file_index (JSON + SQLite files table)
     - symbol_graph (JSON + SQLite symbols table)
     - dependency_graph (JSON + SQLite edges table)
+
+    v0.1: Semantic invalidation wired in.
 
     Falls back to full build_cache if no existing cache exists.
     """
@@ -380,6 +442,9 @@ def update_cache(project_root: Path) -> Dict[str, Any]:
         # Nothing changed — fast path
         return {"manifest": status.get("manifest", {}),
                 "cache_dir": str(paths["root"]), "updated": False}
+
+    # v0.1: Semantic invalidation
+    invalidation_report = _apply_semantic_invalidation(project_root, diff)
 
     # Incremental: only build for changed files
     file_index = build_file_index_incremental(project_root, diff)
@@ -414,7 +479,8 @@ def update_cache(project_root: Path) -> Dict[str, Any]:
         manifest["sqlite_synced"] = False
 
     return {"manifest": manifest, "cache_dir": str(paths["root"]),
-            "updated": True, "changes": diff}
+            "updated": True, "changes": diff,
+            "invalidation": invalidation_report}
 
 
 def build_file_index(project_root: Path) -> Dict[str, Any]:

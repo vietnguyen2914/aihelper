@@ -391,9 +391,10 @@ def _load_external_handlers() -> None:
         from .verify import handle_verify as _hv
         from .compressor import handle_compress_context as _hcc
         from .compressor_fidelity import handle_compression_fidelity as _hcf
-        from .invalidation import handle_invalidation_log as _hil
+        from .invalidation import handle_invalidation_log as _hil, handle_invalidation_classify as _hicl
         from .mermaid_export import handle_mermaid_export as _hme
         _external_handlers = {
+            "invalidation_classify": _hicl,
             "editor_context": _hec,
             "lsp_definition": _hld,
             "lsp_references": _hlr,
@@ -464,9 +465,10 @@ def _load_external_handlers() -> None:
         from verify import handle_verify as _hv
         from compressor import handle_compress_context as _hcc
         from compressor_fidelity import handle_compression_fidelity as _hcf
-        from invalidation import handle_invalidation_log as _hil
+        from invalidation import handle_invalidation_log as _hil, handle_invalidation_classify as _hicl
         from mermaid_export import handle_mermaid_export as _hme
         _external_handlers = {
+            "invalidation_classify": _hicl,
             "editor_context": _hec,
             "lsp_definition": _hld,
             "lsp_references": _hlr,
