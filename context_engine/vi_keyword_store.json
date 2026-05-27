@@ -1,13 +1,14 @@
 {
   "mapping": {
     "and": "context",
-    "for": "cli"
+    "for": "cli",
+    "on": "front"
   },
   "count": {
     "for": 3,
     "and": 3,
     "to": 2,
-    "on": 2,
+    "on": 3,
     "in": 2,
     "app": 2
   }

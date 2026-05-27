@@ -516,99 +516,24 @@ def _get_methods() -> Dict[str, Callable]:
 
 
 def _auto_capture_knowledge(method: str, params: Dict[str, Any], result: Dict[str, Any]) -> None:
-    """Auto-capture architectural decisions, debug history, and preferences from daemon activity.
-    
-    Runs silently — never blocks request processing. Captures:
-    - Architectural decisions: when patch_plan targets config/auth/middleware files
-    - Debugging history: when diagnostics finds errors that get resolved
-    - Preferences: when route/session bootstrap exposes repeated patterns
-    - Auto-dispatch: on bootstrap and init-config calls
-    """
+    """Auto-capture via modular intelligence.capture. Silent, non-blocking."""
     try:
-        from .memory_engine import (
-            add_decision, add_debug_entry, set_preference,
-            search_knowledge,
-        )
+        from .intelligence.capture import auto_capture as _ac
         from .knowledge_dispatcher import dispatch_knowledge
     except ImportError:
         try:
-            from memory_engine import (
-                add_decision, add_debug_entry, set_preference,
-                search_knowledge,
-            )
+            from intelligence.capture import auto_capture as _ac
             from knowledge_dispatcher import dispatch_knowledge
         except ImportError:
             return
-
-    project_root = None
-    if isinstance(params.get("project_root"), str):
-        project_root = Path(params["project_root"])
-
-    # ── Auto-capture architectural decisions ──────────────────
-    if method == "patch_plan" and isinstance(result, dict):
-        files = params.get("files", []) or result.get("files", [])
-        task = params.get("task", "")
-        config_patterns = ["config", "middleware", "auth", "migration", "schema", "docker", "ci"]
-        if any(pattern in str(f).lower() for f in files for pattern in config_patterns):
-            # Auto-capture as lightweight architectural change
-            decision_id = f"auto-{method}-{int(time.time())}"
-            try:
-                add_decision(
-                    decision_id=decision_id,
-                    choice=task[:100],
-                    reason=f"Auto-captured from {method} targeting config files: {', '.join(files[:3])}",
-                    related_files=list(files)[:5],
-                    confidence=0.3,  # Lower confidence for auto-captured
-                    tags=["auto-captured"],
-                    project_root=project_root,
-                )
-            except Exception:
-                pass
-
-    # ── Auto-capture debugging history ────────────────────────
-    if method == "diagnostics" and isinstance(result, dict):
-        errors = result.get("errors", [])
-        if errors:
-            error_sig = str(errors[0])[:200] if errors else ""
-            if error_sig:
-                try:
-                    existing = search_knowledge(error_sig[:50], project_root=project_root, limit=1)
-                    if not existing.get("debugs"):
-                        add_debug_entry(
-                            symptom=error_sig[:200],
-                            error_signature=error_sig[:100],
-                            project_root=project_root,
-                        )
-                except Exception:
-                    pass
-
-    # ── Auto-capture preferences from route patterns ─────────
-    if method == "route" and isinstance(params.get("task"), str):
-        task = params["task"].lower()
-        pref_map = {
-            "pnpm": ("package_manager", "pnpm", "frontend"),
-            "npm": ("package_manager", "npm", "frontend"),
-            "yarn": ("package_manager", "yarn", "frontend"),
-            "mariadb": ("database", "mariadb", "backend"),
-            "postgres": ("database", "postgresql", "backend"),
-            "mysql": ("database", "mysql", "backend"),
-            "sqlite": ("database", "sqlite", "backend"),
-            "docker": ("infra", "docker", "infra"),
-            "kubernetes": ("infra", "kubernetes", "infra"),
-            "k8s": ("infra", "kubernetes", "infra"),
-        }
-        for keyword, (key, value, category) in pref_map.items():
-            if keyword in task:
-                try:
-                    set_preference(key=key, value=value, category=category,
-                                   source="auto-detected", project_root=project_root)
-                except Exception:
-                    pass
-
-    # ── Auto-dispatch on session bootstrap ───────────────────
+    try:
+        _ac(method, params, result)
+    except Exception:
+        pass
     if method == "bootstrap":
         try:
-            dispatch_knowledge(project_root=project_root)
+            pr = Path(params["project_root"]) if isinstance(params.get("project_root"), str) else None
+            dispatch_knowledge(project_root=pr)
         except Exception:
             pass
 

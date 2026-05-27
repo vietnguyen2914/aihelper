@@ -849,6 +849,14 @@ def build_cache(project_root: Path) -> Dict[str, Any]:
     except Exception:
         manifest["sqlite_synced"] = False
 
+    # ── Auto-detect project preferences (v0.0.8) ────────────────
+    try:
+        from .knowledge_dispatcher import auto_detect_preferences
+        detected = auto_detect_preferences(project_root)
+        manifest["preferences_detected"] = detected.get("stored", 0)
+    except Exception:
+        manifest["preferences_detected"] = 0
+
     return {"manifest": manifest, "cache_dir": str(paths["root"])}
 
 

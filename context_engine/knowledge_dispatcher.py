@@ -244,20 +244,25 @@ def _dispatch_claude(knowledge: Dict[str, Any]) -> Dict[str, str]:
 def dispatch_knowledge(
     project_root: Optional[Path] = None,
     editors: Optional[List[str]] = None,
+    task_context: str = "",
 ) -> Dict[str, Any]:
     """
-    Read knowledge from the memory engine and dispatch to all editor configs.
+    Read knowledge from the intelligence engine and dispatch to all editor configs.
 
     Args:
         project_root: Target project (affects which knowledge DB to query)
         editors: Specific editors to dispatch to. None = all available.
+        task_context: If provided, use targeted search_knowledge() for filtering.
     """
     try:
-        from .memory_engine import get_all_knowledge, all_preferences_detail
+        from .memory_engine import get_all_knowledge, all_preferences_detail, search_knowledge
     except ImportError:
-        from memory_engine import get_all_knowledge, all_preferences_detail
+        from memory_engine import get_all_knowledge, all_preferences_detail, search_knowledge
 
-    knowledge = get_all_knowledge(project_root=project_root)
+    if task_context:
+        knowledge = search_knowledge(task_context, project_root=project_root)
+    else:
+        knowledge = get_all_knowledge(project_root=project_root)
     knowledge["preferences_detail"] = all_preferences_detail(project_root=project_root)
 
     target_editors = editors or ["copilot", "codex", "claude"]
@@ -287,6 +292,53 @@ def dispatch_knowledge(
 
 
 # ── Auto-detect preferences from project configs ────────────────
+
+def _detect_git_preferences(project_root: Path) -> Dict[str, Dict[str, str]]:
+    """Detect preferences from git history: commit patterns, branch names, CI configs."""
+    import subprocess
+    detected: Dict[str, Dict[str, str]] = {}
+
+    # Check .github/workflows for CI platform
+    ci_dir = project_root / ".github" / "workflows"
+    if ci_dir.exists():
+        for wf in ci_dir.glob("*.yml"):
+            try:
+                content = wf.read_text()
+                if "pnpm" in content.lower():
+                    detected.setdefault("ci_package_manager", {"value": "pnpm", "category": "ci"})
+                elif "yarn" in content.lower():
+                    detected.setdefault("ci_package_manager", {"value": "yarn", "category": "ci"})
+                elif "npm" in content.lower() and "npm run" in content.lower():
+                    detected.setdefault("ci_package_manager", {"value": "npm", "category": "ci"})
+                if "docker" in content.lower():
+                    detected.setdefault("ci_uses_docker", {"value": "true", "category": "ci"})
+            except Exception:
+                pass
+
+    # Check .gitignore for tool hints
+    gitignore = project_root / ".gitignore"
+    if gitignore.exists():
+        try:
+            content = gitignore.read_text()
+            if "node_modules" in content:
+                detected.setdefault("project_type", {"value": "node", "category": "general"})
+            if "__pycache__" in content:
+                detected.setdefault("project_type", {"value": "python", "category": "general"})
+            if "vendor/" in content:
+                detected.setdefault("project_type", {"value": "php", "category": "general"})
+            if "target/" in content and ("pom.xml" in str(list(project_root.glob("pom.xml"))) if list(project_root.glob("pom.xml")) else True):
+                pass  # Java already detected by pom.xml
+        except Exception:
+            pass
+
+    # Check for monorepo structure
+    if (project_root / "packages").is_dir() or (project_root / "pnpm-workspace.yaml").exists():
+        detected.setdefault("repo_structure", {"value": "monorepo", "category": "infra"})
+    elif (project_root / "lerna.json").exists():
+        detected.setdefault("repo_structure", {"value": "monorepo", "category": "infra"})
+
+    return detected
+
 
 def auto_detect_preferences(project_root: Path) -> Dict[str, Any]:
     """
@@ -356,6 +408,19 @@ def auto_detect_preferences(project_root: Path) -> Dict[str, Any]:
             project_root=project_root,
         )
         stored.append(result)
+
+    # ── Git-derived preferences ───────────────────────────────────
+    git_prefs = _detect_git_preferences(project_root)
+    for key, info in git_prefs.items():
+        if key not in detected:
+            result = set_preference(
+                key=key, value=info["value"],
+                category=info.get("category", ""),
+                confidence=0.6, source="git-derived",
+                project_root=project_root,
+            )
+            stored.append(result)
+            detected[key] = info
 
     return {
         "detected": detected,
