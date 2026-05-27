@@ -295,6 +295,30 @@ for project_dir in "${PROJECTS[@]}"; do
     run_integration_script "$AIHELPER_ROOT/scripts/claude-integration.py" --path "$project_dir" $DRY_FLAG
 done
 
+# ── Auto-detect preferences & dispatch knowledge ──────────────────
+echo ""
+echo "── Auto-detecting preferences & dispatching knowledge ──────"
+echo ""
+
+for project_dir in "${PROJECTS[@]}"; do
+    log "INFO" "Auto-detecting preferences for: $(basename "$project_dir")"
+    # Run auto-detect via Python
+    if command -v python3 >/dev/null 2>&1; then
+        python3 -c "
+import sys
+sys.path.insert(0, '$AIHELPER_ROOT')
+from context_engine.knowledge_dispatcher import auto_detect_preferences, dispatch_knowledge
+from pathlib import Path
+result = auto_detect_preferences(Path('$project_dir'))
+print(f'  Detected: {result.get(\"detected\", {})}')
+print(f'  Stored: {result.get(\"stored\", 0)} preferences')
+dispatch_result = dispatch_knowledge(project_root=Path('$project_dir'))
+print(f'  Dispatched to: {list(dispatch_result.get(\"editors\", {}).keys())}')
+print(f'  Knowledge: {dispatch_result.get(\"knowledge_summary\", {})}')
+" 2>/dev/null || log "SKIP" "  Knowledge dispatch skipped (Python unavailable)"
+    fi
+done
+
 # ── 4f: Auto-populate project registry (optional) ──────────────────
 # Optional: generate project registry for personal KB / documentation.
 # Set REGISTRY_FILE env var to enable, e.g.:

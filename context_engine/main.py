@@ -941,6 +941,49 @@ def main() -> int:
     warmup_parser.add_argument("--extra-project", action="append", default=[])
     warmup_parser.add_argument("--json", "-json", action="store_true", default=False, help=argparse.SUPPRESS)
 
+    # ── Knowledge Engine ───────────────────────────────────────────────
+    knowledge_parser = subparsers.add_parser("knowledge", help="Manage persistent engineering knowledge: decisions, debug history, preferences.")
+    knowledge_subparsers = knowledge_parser.add_subparsers(dest="knowledge_command")
+    # add-decision
+    k_add_dec = knowledge_subparsers.add_parser("add-decision", help="Record an architectural decision.")
+    k_add_dec.add_argument("id", help="Unique decision identifier (e.g. auth-provider)")
+    k_add_dec.add_argument("--choice", required=True, help="The chosen approach")
+    k_add_dec.add_argument("--reason", default="", help="Why this choice was made")
+    k_add_dec.add_argument("--alternatives", nargs="*", default=[], help="Rejected alternatives")
+    k_add_dec.add_argument("--files", nargs="*", default=[], help="Related files")
+    k_add_dec.add_argument("--project-root", default=None)
+    k_add_dec.add_argument("--json", "-json", action="store_true", default=False, help=argparse.SUPPRESS)
+    # add-debug
+    k_add_dbg = knowledge_subparsers.add_parser("add-debug", help="Record a debugging outcome.")
+    k_add_dbg.add_argument("--symptom", required=True, help="What went wrong")
+    k_add_dbg.add_argument("--root-cause", default="", help="The underlying cause")
+    k_add_dbg.add_argument("--fix-commit", default="", help="Commit that fixed it")
+    k_add_dbg.add_argument("--modules", nargs="*", default=[], help="Affected modules")
+    k_add_dbg.add_argument("--project-root", default=None)
+    k_add_dbg.add_argument("--json", "-json", action="store_true", default=False, help=argparse.SUPPRESS)
+    # set-preference
+    k_set_pref = knowledge_subparsers.add_parser("set-preference", help="Store a developer preference.")
+    k_set_pref.add_argument("key", help="Preference name (e.g. package_manager)")
+    k_set_pref.add_argument("value", help="Preference value (e.g. pnpm)")
+    k_set_pref.add_argument("--category", default="", help="Category: backend, frontend, infra, general")
+    k_set_pref.add_argument("--project-root", default=None)
+    k_set_pref.add_argument("--json", "-json", action="store_true", default=False, help=argparse.SUPPRESS)
+    # recall
+    k_recall = knowledge_subparsers.add_parser("recall", help="Search stored knowledge.")
+    k_recall.add_argument("query", nargs="?", default="", help="Search term")
+    k_recall.add_argument("--limit", type=int, default=10)
+    k_recall.add_argument("--project-root", default=None)
+    k_recall.add_argument("--json", "-json", action="store_true", default=False, help=argparse.SUPPRESS)
+    # dispatch
+    k_dispatch = knowledge_subparsers.add_parser("dispatch", help="Dispatch knowledge to all editor configs.")
+    k_dispatch.add_argument("--project-root", default=None)
+    k_dispatch.add_argument("--json", "-json", action="store_true", default=False, help=argparse.SUPPRESS)
+    # list
+    k_list = knowledge_subparsers.add_parser("list", help="List all knowledge of a type.")
+    k_list.add_argument("--type", dest="list_type", choices=("decisions", "debugs", "preferences"), default="decisions")
+    k_list.add_argument("--project-root", default=None)
+    k_list.add_argument("--json", "-json", action="store_true", default=False, help=argparse.SUPPRESS)
+
     # ── Graph Query Tools (v0.0.7) ────────────────────────────────────
     graph_parser = subparsers.add_parser("graph", help="SQLite knowledge graph queries.")
     graph_sub = graph_parser.add_subparsers(dest="graph_command")
@@ -997,6 +1040,7 @@ def main() -> int:
         "classify_op",
         "degradation",
         "warmup",
+        "knowledge",
         "graph",
         "upgrade",
         "affected",
@@ -1465,13 +1509,76 @@ def main() -> int:
         result = _try_daemon_proxy("warmup_status", {})
         if result is None:
             result = warm_all_projects(
-                github_root=Path(args.github_root).expanduser().resolve(),
+                github_root=Path(args.github_root).expanduser().resolve() if args.github_root else Path.home() / "github",
                 extra_roots=[Path(item).expanduser().resolve() for item in args.extra_project],
             )
         if bool(args.json):
             print(json.dumps(result, indent=2, ensure_ascii=False))
         else:
             print(render_markdown("Warmup", result))
+        return 0
+
+    if argv[0] == "knowledge":
+        args = knowledge_parser.parse_args(argv[1:])
+        target_root = Path(args.project_root or Path.cwd()).resolve() if hasattr(args, 'project_root') else Path.cwd()
+        
+        if args.knowledge_command == "add-decision":
+            result = _try_daemon_proxy("knowledge_add_decision", {
+                "id": args.id, "choice": args.choice, "reason": args.reason,
+                "alternatives": args.alternatives, "files": args.files,
+                "project_root": str(target_root),
+            })
+            if result is None:
+                from .memory_engine import add_decision
+                result = add_decision(args.id, args.choice, args.reason, args.alternatives, args.files, project_root=target_root)
+        elif args.knowledge_command == "add-debug":
+            result = _try_daemon_proxy("knowledge_add_debug", {
+                "symptom": args.symptom, "root_cause": args.root_cause,
+                "fix_commit": args.fix_commit, "affected_modules": args.modules,
+                "project_root": str(target_root),
+            })
+            if result is None:
+                from .memory_engine import add_debug_entry
+                result = add_debug_entry(args.symptom, args.root_cause, args.fix_commit, args.modules, project_root=target_root)
+        elif args.knowledge_command == "set-preference":
+            result = _try_daemon_proxy("knowledge_set_preference", {
+                "key": args.key, "value": args.value, "category": args.category,
+                "project_root": str(target_root),
+            })
+            if result is None:
+                from .memory_engine import set_preference
+                result = set_preference(args.key, args.value, args.category, project_root=target_root)
+        elif args.knowledge_command == "recall":
+            query = getattr(args, 'query', '')
+            result = _try_daemon_proxy("knowledge_recall", {
+                "query": query, "limit": args.limit, "project_root": str(target_root),
+            })
+            if result is None:
+                from .memory_engine import search_knowledge, get_all_knowledge
+                if query:
+                    result = search_knowledge(query, project_root=target_root, limit=args.limit)
+                else:
+                    result = get_all_knowledge(project_root=target_root)
+        elif args.knowledge_command == "dispatch":
+            result = _try_daemon_proxy("knowledge_dispatch", {"project_root": str(target_root)})
+            if result is None:
+                from .knowledge_dispatcher import dispatch_knowledge
+                result = dispatch_knowledge(project_root=target_root)
+        elif args.knowledge_command == "list":
+            from .memory_engine import list_decisions, list_debugs, all_preferences_detail
+            if args.list_type == "decisions":
+                result = {"decisions": list_decisions(project_root=target_root)}
+            elif args.list_type == "debugs":
+                result = {"debugs": list_debugs(project_root=target_root)}
+            else:
+                result = {"preferences": all_preferences_detail(project_root=target_root)}
+        else:
+            knowledge_parser.error("missing knowledge command: add-decision, add-debug, set-preference, recall, dispatch, or list")
+        
+        if bool(args.json):
+            print(json.dumps(result, indent=2, ensure_ascii=False))
+        else:
+            print(render_markdown("Knowledge", result))
         return 0
 
     if argv[0] == "upgrade":

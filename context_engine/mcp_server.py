@@ -288,6 +288,88 @@ def _graph_status_tool_schema() -> Dict[str, Any]:
     }
 
 
+def _knowledge_add_decision_schema() -> Dict[str, Any]:
+    return {
+        "name": "aihelper_knowledge_add_decision",
+        "description": "Record an architectural decision in the persistent knowledge store. Shared across all editors.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "decision_id": {"type": "string", "description": "Unique identifier (e.g. 'auth-provider')"},
+                "choice": {"type": "string", "description": "The chosen approach (e.g. 'jose')"},
+                "reason": {"type": "string", "description": "Why this choice was made"},
+                "alternatives": {"type": "array", "items": {"type": "string"}, "description": "Alternatives that were rejected"},
+                "related_files": {"type": "array", "items": {"type": "string"}, "description": "Files affected by this decision"},
+                "project_root": {"type": "string", "description": "Target repository root"},
+            },
+            "required": ["decision_id", "choice"],
+        },
+    }
+
+
+def _knowledge_add_debug_schema() -> Dict[str, Any]:
+    return {
+        "name": "aihelper_knowledge_add_debug",
+        "description": "Record a debugging session outcome in the persistent knowledge store. Auto-detects recurrence.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "symptom": {"type": "string", "description": "What went wrong"},
+                "root_cause": {"type": "string", "description": "The underlying cause"},
+                "fix_commit": {"type": "string", "description": "Commit that fixed it"},
+                "affected_modules": {"type": "array", "items": {"type": "string"}, "description": "Modules affected"},
+                "project_root": {"type": "string", "description": "Target repository root"},
+            },
+            "required": ["symptom"],
+        },
+    }
+
+
+def _knowledge_set_preference_schema() -> Dict[str, Any]:
+    return {
+        "name": "aihelper_knowledge_set_preference",
+        "description": "Store a developer preference (e.g. package manager, database, infra style). Synced across editors.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "key": {"type": "string", "description": "Preference name (e.g. 'package_manager')"},
+                "value": {"type": "string", "description": "Preference value (e.g. 'pnpm')"},
+                "category": {"type": "string", "description": "Category: backend, frontend, infra, general"},
+                "project_root": {"type": "string", "description": "Target repository root"},
+            },
+            "required": ["key", "value"],
+        },
+    }
+
+
+def _knowledge_recall_schema() -> Dict[str, Any]:
+    return {
+        "name": "aihelper_knowledge_recall",
+        "description": "Search the persistent knowledge store: architectural decisions, debug history, and preferences.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "Search term across all knowledge types"},
+                "project_root": {"type": "string", "description": "Target repository root"},
+                "limit": {"type": "integer", "default": 10},
+            },
+        },
+    }
+
+
+def _knowledge_dispatch_schema() -> Dict[str, Any]:
+    return {
+        "name": "aihelper_knowledge_dispatch",
+        "description": "Dispatch stored knowledge to all editor configs so every agent sees the same decisions, prefs, and debug history.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "project_root": {"type": "string", "description": "Target repository root"},
+            },
+        },
+    }
+
+
 def _tool_schemas() -> list[Dict[str, Any]]:
     return [
         _context_tool_schema(),
@@ -305,6 +387,11 @@ def _tool_schemas() -> list[Dict[str, Any]]:
         _impact_tool_schema(),
         _explore_tool_schema(),
         _graph_status_tool_schema(),
+        _knowledge_add_decision_schema(),
+        _knowledge_add_debug_schema(),
+        _knowledge_set_preference_schema(),
+        _knowledge_recall_schema(),
+        _knowledge_dispatch_schema(),
     ]
 
 
@@ -420,6 +507,82 @@ def _call_tool(name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
         from .graph_db import get_db
         db = get_db(_target_root(arguments))
         return _json_content(db.get_stats())
+    # ── Knowledge Tools ────────────────────────────────────
+    if name == "aihelper_knowledge_add_decision":
+        daemon_data = _daemon_result("knowledge_add_decision", {
+            "id": str(arguments.get("decision_id", "")),
+            "choice": str(arguments.get("choice", "")),
+            "reason": str(arguments.get("reason", "")),
+            "alternatives": arguments.get("alternatives"),
+            "files": arguments.get("related_files"),
+            "project_root": str(_target_root(arguments)),
+        })
+        if daemon_data:
+            return _json_content(daemon_data)
+        from .memory_engine import add_decision
+        return _json_content(add_decision(
+            decision_id=str(arguments.get("decision_id", "")),
+            choice=str(arguments.get("choice", "")),
+            reason=str(arguments.get("reason", "")),
+            alternatives=arguments.get("alternatives"),
+            related_files=arguments.get("related_files"),
+            project_root=_target_root(arguments),
+        ))
+    if name == "aihelper_knowledge_add_debug":
+        daemon_data = _daemon_result("knowledge_add_debug", {
+            "symptom": str(arguments.get("symptom", "")),
+            "root_cause": str(arguments.get("root_cause", "")),
+            "fix_commit": str(arguments.get("fix_commit", "")),
+            "affected_modules": arguments.get("affected_modules"),
+            "project_root": str(_target_root(arguments)),
+        })
+        if daemon_data:
+            return _json_content(daemon_data)
+        from .memory_engine import add_debug_entry
+        return _json_content(add_debug_entry(
+            symptom=str(arguments.get("symptom", "")),
+            root_cause=str(arguments.get("root_cause", "")),
+            fix_commit=str(arguments.get("fix_commit", "")),
+            affected_modules=arguments.get("affected_modules"),
+            project_root=_target_root(arguments),
+        ))
+    if name == "aihelper_knowledge_set_preference":
+        daemon_data = _daemon_result("knowledge_set_preference", {
+            "key": str(arguments.get("key", "")),
+            "value": str(arguments.get("value", "")),
+            "category": str(arguments.get("category", "")),
+            "project_root": str(_target_root(arguments)),
+        })
+        if daemon_data:
+            return _json_content(daemon_data)
+        from .memory_engine import set_preference
+        return _json_content(set_preference(
+            key=str(arguments.get("key", "")),
+            value=str(arguments.get("value", "")),
+            category=str(arguments.get("category", "")),
+            project_root=_target_root(arguments),
+        ))
+    if name == "aihelper_knowledge_recall":
+        daemon_data = _daemon_result("knowledge_recall", {
+            "query": str(arguments.get("query", "")),
+            "limit": int(arguments.get("limit", 10)),
+            "project_root": str(_target_root(arguments)),
+        })
+        if daemon_data:
+            return _json_content(daemon_data)
+        from .memory_engine import search_knowledge, get_all_knowledge
+        query = str(arguments.get("query", ""))
+        if query:
+            return _json_content(search_knowledge(query, project_root=_target_root(arguments), limit=int(arguments.get("limit", 10))))
+        return _json_content(get_all_knowledge(project_root=_target_root(arguments)))
+    if name == "aihelper_knowledge_dispatch":
+        daemon_data = _daemon_result("knowledge_dispatch", {
+            "project_root": str(_target_root(arguments)),
+        })
+        if daemon_data:
+            return _json_content(daemon_data)
+        from .knowledge_dispatcher import dispatch_knowledge
+        return _json_content(dispatch_knowledge(project_root=_target_root(arguments)))
     raise ValueError(f"unknown tool: {name}")
 
 

@@ -385,6 +385,7 @@ def _load_external_handlers() -> None:
         from .session_bootstrap import handle_bootstrap as _hboot
         from .capability_router import handle_capability_route as _hcr, handle_capability_vision as _hcv, handle_capability_ocr as _hco2, handle_capability_rerank as _hcr2, handle_capability_embed as _hce
         from .document_pipeline import handle_generate_mermaid as _hgm, handle_render_diagram as _hrd, handle_generate_presentation as _hgp, handle_convert_document as _hcd, handle_parse_document as _hpd, handle_dbml_convert as _hdbc, handle_vega_chart as _hvc
+        from .memory_engine import handle_knowledge_add_decision as _hkad, handle_knowledge_add_debug as _hkad2, handle_knowledge_set_preference as _hksp, handle_knowledge_recall as _hkr, handle_knowledge_dispatch as _hkd
         _external_handlers = {
             "editor_context": _hec,
             "lsp_definition": _hld,
@@ -420,6 +421,11 @@ def _load_external_handlers() -> None:
             "dbml_convert": _hdbc,
             "vega_chart": _hvc,
             "bootstrap": _hboot,
+            "knowledge_add_decision": _hkad,
+            "knowledge_add_debug": _hkad2,
+            "knowledge_set_preference": _hksp,
+            "knowledge_recall": _hkr,
+            "knowledge_dispatch": _hkd,
         }
     except ImportError:
         from confidence import handle_confidence as _hc
@@ -438,6 +444,7 @@ def _load_external_handlers() -> None:
         from session_bootstrap import handle_bootstrap as _hboot
         from capability_router import handle_capability_route as _hcr, handle_capability_vision as _hcv, handle_capability_ocr as _hco2, handle_capability_rerank as _hcr2, handle_capability_embed as _hce
         from document_pipeline import handle_generate_mermaid as _hgm, handle_render_diagram as _hrd, handle_generate_presentation as _hgp, handle_convert_document as _hcd, handle_parse_document as _hpd, handle_dbml_convert as _hdbc, handle_vega_chart as _hvc
+        from memory_engine import handle_knowledge_add_decision as _hkad, handle_knowledge_add_debug as _hkad2, handle_knowledge_set_preference as _hksp, handle_knowledge_recall as _hkr, handle_knowledge_dispatch as _hkd
         _external_handlers = {
             "editor_context": _hec,
             "lsp_definition": _hld,
@@ -473,6 +480,11 @@ def _load_external_handlers() -> None:
             "dbml_convert": _hdbc,
             "vega_chart": _hvc,
             "bootstrap": _hboot,
+            "knowledge_add_decision": _hkad,
+            "knowledge_add_debug": _hkad2,
+            "knowledge_set_preference": _hksp,
+            "knowledge_recall": _hkr,
+            "knowledge_dispatch": _hkd,
         }
 
 def _get_methods() -> Dict[str, Callable]:
@@ -501,6 +513,104 @@ def _get_methods() -> Dict[str, Callable]:
         "graph_status": handle_graph_status,
         **_external_handlers,
     }
+
+
+def _auto_capture_knowledge(method: str, params: Dict[str, Any], result: Dict[str, Any]) -> None:
+    """Auto-capture architectural decisions, debug history, and preferences from daemon activity.
+    
+    Runs silently — never blocks request processing. Captures:
+    - Architectural decisions: when patch_plan targets config/auth/middleware files
+    - Debugging history: when diagnostics finds errors that get resolved
+    - Preferences: when route/session bootstrap exposes repeated patterns
+    - Auto-dispatch: on bootstrap and init-config calls
+    """
+    try:
+        from .memory_engine import (
+            add_decision, add_debug_entry, set_preference,
+            search_knowledge,
+        )
+        from .knowledge_dispatcher import dispatch_knowledge
+    except ImportError:
+        try:
+            from memory_engine import (
+                add_decision, add_debug_entry, set_preference,
+                search_knowledge,
+            )
+            from knowledge_dispatcher import dispatch_knowledge
+        except ImportError:
+            return
+
+    project_root = None
+    if isinstance(params.get("project_root"), str):
+        project_root = Path(params["project_root"])
+
+    # ── Auto-capture architectural decisions ──────────────────
+    if method == "patch_plan" and isinstance(result, dict):
+        files = params.get("files", []) or result.get("files", [])
+        task = params.get("task", "")
+        config_patterns = ["config", "middleware", "auth", "migration", "schema", "docker", "ci"]
+        if any(pattern in str(f).lower() for f in files for pattern in config_patterns):
+            # Auto-capture as lightweight architectural change
+            decision_id = f"auto-{method}-{int(time.time())}"
+            try:
+                add_decision(
+                    decision_id=decision_id,
+                    choice=task[:100],
+                    reason=f"Auto-captured from {method} targeting config files: {', '.join(files[:3])}",
+                    related_files=list(files)[:5],
+                    confidence=0.3,  # Lower confidence for auto-captured
+                    tags=["auto-captured"],
+                    project_root=project_root,
+                )
+            except Exception:
+                pass
+
+    # ── Auto-capture debugging history ────────────────────────
+    if method == "diagnostics" and isinstance(result, dict):
+        errors = result.get("errors", [])
+        if errors:
+            error_sig = str(errors[0])[:200] if errors else ""
+            if error_sig:
+                try:
+                    existing = search_knowledge(error_sig[:50], project_root=project_root, limit=1)
+                    if not existing.get("debugs"):
+                        add_debug_entry(
+                            symptom=error_sig[:200],
+                            error_signature=error_sig[:100],
+                            project_root=project_root,
+                        )
+                except Exception:
+                    pass
+
+    # ── Auto-capture preferences from route patterns ─────────
+    if method == "route" and isinstance(params.get("task"), str):
+        task = params["task"].lower()
+        pref_map = {
+            "pnpm": ("package_manager", "pnpm", "frontend"),
+            "npm": ("package_manager", "npm", "frontend"),
+            "yarn": ("package_manager", "yarn", "frontend"),
+            "mariadb": ("database", "mariadb", "backend"),
+            "postgres": ("database", "postgresql", "backend"),
+            "mysql": ("database", "mysql", "backend"),
+            "sqlite": ("database", "sqlite", "backend"),
+            "docker": ("infra", "docker", "infra"),
+            "kubernetes": ("infra", "kubernetes", "infra"),
+            "k8s": ("infra", "kubernetes", "infra"),
+        }
+        for keyword, (key, value, category) in pref_map.items():
+            if keyword in task:
+                try:
+                    set_preference(key=key, value=value, category=category,
+                                   source="auto-detected", project_root=project_root)
+                except Exception:
+                    pass
+
+    # ── Auto-dispatch on session bootstrap ───────────────────
+    if method == "bootstrap":
+        try:
+            dispatch_knowledge(project_root=project_root)
+        except Exception:
+            pass
 
 
 def handle_request(raw: str) -> str:
@@ -547,6 +657,9 @@ def handle_request(raw: str) -> str:
                     s.record_symbol_query(params.get("query", ""))
             except Exception:
                 pass
+
+        # Auto-capture knowledge (architectural decisions, debug history, preferences)
+        _auto_capture_knowledge(method, params, result)
 
         return json.dumps({"result": result, "id": req_id, "_elapsed_ms": round(elapsed, 2)}, default=str)
     except Exception as exc:
