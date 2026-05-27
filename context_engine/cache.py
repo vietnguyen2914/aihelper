@@ -864,6 +864,25 @@ def _detect_language(file_path: str) -> str:
     return lang_map.get(suffix, "unknown")
 
 
+def _ensure_sqlite_synced(project_root: Path, manifest: Dict) -> None:
+    """v0.1: Ensure SQLite is synced after a cache restore.
+
+    Called when build_cache detects a restored cache that lacks sqlite_synced flag.
+    Loads JSON files and syncs them to SQLite.
+    """
+    paths = cache_paths(project_root)
+    try:
+        file_index = safe_load_json(paths["file_index"], default={}) or {}
+        symbol_graph = safe_load_json(paths["symbol_graph"], default={}) or {}
+        dependency_graph = safe_load_json(paths["dependency_graph"], default={}) or {}
+        if file_index and symbol_graph:
+            _sync_cache_to_sqlite(project_root, file_index, symbol_graph, dependency_graph)
+            manifest["sqlite_synced"] = True
+            safe_write_json(paths["manifest"], manifest)
+    except Exception:
+        pass  # Non-fatal — SQLite will sync on next full build
+
+
 def build_cache(project_root: Path) -> Dict[str, Any]:
     project_root = project_root.resolve()
     paths = cache_paths(project_root)
@@ -883,6 +902,9 @@ def build_cache(project_root: Path) -> Dict[str, Any]:
             try:
                 with open(manifest_path) as f:
                     manifest = json.load(f)
+                # v0.1: After restore, ensure SQLite is synced
+                if not manifest.get("sqlite_synced"):
+                    _ensure_sqlite_synced(project_root, manifest)
                 return {"manifest": manifest, "cache_dir": str(paths["root"]), "restored_from_persist": True}
             except (json.JSONDecodeError, OSError):
                 pass
@@ -912,8 +934,11 @@ def build_cache(project_root: Path) -> Dict[str, Any]:
     try:
         _sync_cache_to_sqlite(project_root, file_index, symbol_graph, dependency_graph)
         manifest["sqlite_synced"] = True
-    except Exception:
+    except Exception as e:
         manifest["sqlite_synced"] = False
+        manifest["sqlite_sync_error"] = str(e)[:200]
+        import sys
+        print(f"[aihelper] SQLite sync warning: {e}", file=sys.stderr)
 
     # ── Auto-detect project preferences (v0.0.8) ────────────────
     try:

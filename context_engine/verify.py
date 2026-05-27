@@ -89,7 +89,15 @@ def verify_regression_risk(project_root: Path, target: str = "") -> Dict[str, An
 
     try:
         from .intelligence.search import search_knowledge
-        past_bugs = search_knowledge(target, limit=5) if target else []
+        past_bugs_raw = search_knowledge(target, limit=5) if target else []
+        # Normalize: search_knowledge may return strings or dicts
+        past_bugs = []
+        if isinstance(past_bugs_raw, list):
+            for b in past_bugs_raw:
+                if isinstance(b, dict):
+                    past_bugs.append(b)
+                elif isinstance(b, str):
+                    past_bugs.append({"symptom": b, "fix": ""})
     except Exception:
         past_bugs = []
 
@@ -101,16 +109,23 @@ def verify_regression_risk(project_root: Path, target: str = "") -> Dict[str, An
     elif len(files) > 4:
         risk = "medium"
 
+    safe_bugs = []
+    for b in past_bugs:
+        if isinstance(b, dict):
+            safe_bugs.append({
+                "symptom": b.get("symptom", str(b)),
+                "fix": b.get("fix", b.get("fix_commit", "")),
+            })
+        else:
+            safe_bugs.append({"symptom": str(b), "fix": ""})
+
     return {
         "check": "regression_risk",
         "target": target or "(full codebase)",
         "risk_level": risk,
         "affected_files": len(files),
         "file_list": files[:30],
-        "past_bugs": [
-            {"symptom": b.get("symptom", ""), "fix": b.get("fix", "")}
-            for b in past_bugs
-        ],
+        "past_bugs": safe_bugs,
         "deterministic": True,
         "tokens_used": 0,
     }

@@ -320,6 +320,29 @@ def handle_context(params: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def handle_compression_status(params: Dict[str, Any]) -> Dict[str, Any]:
+    """Return compression confidence and kernel health status."""
+    project_root = _resolve_project(params)
+    try:
+        from .compressor import get_compression_confidence, force_recompress
+    except ImportError:
+        from compressor import get_compression_confidence, force_recompress
+    try:
+        from .invalidation import get_invalidation_stats
+    except ImportError:
+        from invalidation import get_invalidation_stats
+    
+    confidence = get_compression_confidence(project_root)
+    invalidation = get_invalidation_stats()
+    
+    return {
+        "compression_confidence": confidence,
+        "needs_recompression": confidence < 0.60,
+        "invalidation_stats": invalidation,
+        "kernel_health": "healthy" if confidence >= 0.60 else "degraded",
+    }
+
+
 # ── Graph Query Handlers (v0.0.7) ─────────────────────────────────
 
 def handle_graph_callers(params: Dict[str, Any]) -> Dict[str, Any]:
@@ -393,6 +416,14 @@ def _load_external_handlers() -> None:
         from .compressor_fidelity import handle_compression_fidelity as _hcf
         from .invalidation import handle_invalidation_log as _hil, handle_invalidation_classify as _hicl
         from .mermaid_export import handle_mermaid_export as _hme
+        try:
+            from .benchmark import handle_benchmark as _hb, handle_benchmark_export as _hbe
+        except ImportError:
+            _hb = _hbe = None
+        try:
+            from .subagent_wiring import handle_subagent_wiring as _hsaw, handle_cognition_package as _hcp
+        except ImportError:
+            _hsaw = _hcp = None
         _external_handlers = {
             "invalidation_classify": _hicl,
             "editor_context": _hec,
@@ -441,6 +472,10 @@ def _load_external_handlers() -> None:
             "compression_fidelity": _hcf,
             "invalidation_log": _hil,
             "mermaid_export": _hme,
+            "benchmark": _hb,
+            "benchmark_export": _hbe,
+            "subagent_wiring": _hsaw,
+            "cognition_package": _hcp,
         }
     except ImportError:
         from confidence import handle_confidence as _hc
@@ -467,6 +502,14 @@ def _load_external_handlers() -> None:
         from compressor_fidelity import handle_compression_fidelity as _hcf
         from invalidation import handle_invalidation_log as _hil, handle_invalidation_classify as _hicl
         from mermaid_export import handle_mermaid_export as _hme
+        try:
+            from benchmark import handle_benchmark as _hb, handle_benchmark_export as _hbe
+        except ImportError:
+            _hb = _hbe = None
+        try:
+            from subagent_wiring import handle_subagent_wiring as _hsaw, handle_cognition_package as _hcp
+        except ImportError:
+            _hsaw = _hcp = None
         _external_handlers = {
             "invalidation_classify": _hicl,
             "editor_context": _hec,
@@ -515,6 +558,10 @@ def _load_external_handlers() -> None:
             "compression_fidelity": _hcf,
             "invalidation_log": _hil,
             "mermaid_export": _hme,
+            "benchmark": _hb,
+            "benchmark_export": _hbe,
+            "subagent_wiring": _hsaw,
+            "cognition_package": _hcp,
         }
 
 def _get_methods() -> Dict[str, Callable]:
@@ -541,6 +588,7 @@ def _get_methods() -> Dict[str, Callable]:
         "graph_impact": handle_graph_impact,
         "graph_explore": handle_graph_explore,
         "graph_status": handle_graph_status,
+        "compression_status": handle_compression_status,
         **_external_handlers,
     }
 

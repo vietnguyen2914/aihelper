@@ -543,8 +543,15 @@ class GraphDatabase:
             "descendants": [dict(r) for r in descendants],
         }
 
-    def find_dead_code(self, kinds: Optional[List[str]] = None) -> List[Dict[str, Any]]:
-        """Tìm symbols không có incoming edges."""
+    def find_dead_code(self, kinds: Optional[List[str]] = None,
+                       filter_getters_setters: bool = True) -> List[Dict[str, Any]]:
+        """Tim symbols khong co incoming edges.
+
+        Args:
+            kinds: Symbol kinds to check (default: function, method, class)
+            filter_getters_setters: If True, exclude get*/set*/is* patterns
+        """
+        import re
         conn = self._get_conn()
         target_kinds = kinds or ["function", "method", "class"]
         placeholders = ",".join("?" * len(target_kinds))
@@ -558,7 +565,12 @@ class GraphDatabase:
             AND (s.visibility IS NULL OR s.visibility != 'private')
             ORDER BY s.file_path, s.name
         """, target_kinds).fetchall()
-        return [dict(r) for r in rows]
+        results = [dict(r) for r in rows]
+        if filter_getters_setters:
+            getter_pattern = re.compile(r'^(get|set|is)[A-Z]')
+            results = [r for r in results
+                       if not getter_pattern.match(r.get("name", ""))]
+        return results
 
     def find_circular_deps(self) -> List[List[str]]:
         """Tìm circular dependencies (file-level)."""

@@ -14,6 +14,7 @@
 
 ## Working Rules
 
+- **File Writing: Always use Python.** Use `write_file` or `edit_file` tools for all file creation/modification. Never use terminal heredocs, `cat` redirects, or MCP file writes — Python is dramatically faster and avoids shell-escaping bugs. Terminal is for reading/listing only.
 - Keep README/docs workflow-first and grounded in real command output, demo assets, or measured benchmarks.
 - Do not commit or push without explicit user permission.
 - Preserve unrelated local changes.
