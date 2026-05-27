@@ -35,6 +35,10 @@ class PrimitiveContract:
       - partial recomputation (via depends_on invalidation)
       - optimization (via cost estimates)
       - profiling (via actual vs estimated metrics)
+      - typed execution planning (via purity/determinism/invalidation_scope)
+
+    v0.1: Typed Execution Capabilities — immutable capability metadata
+    that the optimizer uses to make safe parallelization and caching decisions.
     """
     input_keys: List[str] = field(default_factory=list)
     output_keys: List[str] = field(default_factory=list)
@@ -45,6 +49,13 @@ class PrimitiveContract:
     token_estimate: int = 0
     invalidates: List[str] = field(default_factory=list)
 
+    # ── v0.1 Typed Execution Capabilities ──
+    # Immutable metadata for optimizer decisions. NOT mutated at runtime.
+    purity: str = "unknown"             # "pure" | "mutative" | "unknown"
+    determinism: str = "deterministic"   # "deterministic" | "heuristic" | "ai_bound"
+    invalidation_scope: str = "symbol"   # "symbol" | "file" | "module" | "global"
+    parallel_safe: bool = True           # Can run concurrently without race conditions
+
     def fingerprint_inputs(self, context: Dict[str, Any]) -> str:
         """Create a cache key from the inputs this primitive depends on."""
         import hashlib, json
@@ -53,6 +64,16 @@ class PrimitiveContract:
         subset = {k: context.get(k) for k in self.input_keys if k in context}
         raw = json.dumps(subset, sort_keys=True, default=str)
         return hashlib.md5(raw.encode()).hexdigest()[:12]
+
+    @property
+    def is_pure(self) -> bool:
+        """Pure primitives can be cached, parallelized, and replayed safely."""
+        return self.purity == "pure" and not self.side_effects
+
+    @property
+    def is_deterministic(self) -> bool:
+        """Deterministic primitives always produce the same output for same input."""
+        return self.determinism == "deterministic"
 
 
 # ── Primitive definition ─────────────────────────────────────────
@@ -114,6 +135,11 @@ class Primitive:
             "depends_on": self.contract.depends_on,
             "cost_estimate_ms": self.contract.cost_estimate_ms,
             "token_estimate": self.contract.token_estimate,
+            # v0.1 typed capabilities
+            "purity": self.contract.purity,
+            "determinism": self.contract.determinism,
+            "invalidation_scope": self.contract.invalidation_scope,
+            "parallel_safe": self.contract.parallel_safe,
         }
 
 
@@ -272,12 +298,24 @@ def _summary_generate(ctx: Dict, root: Path) -> Dict:
 
 # ── Registry ─────────────────────────────────────────────────────
 
-def _c(*, ik=None, ok=None, cacheable=False, side=False, deps=None, cost=1.0, tokens=0, inv=None):
-    """Shorthand factory for PrimitiveContract."""
+def _c(*, ik=None, ok=None, cacheable=False, side=False, deps=None, cost=1.0, tokens=0, inv=None,
+       purity=None, det=None, scope=None, par_safe=None):
+    """Shorthand factory for PrimitiveContract.
+
+    v0.1: Added typed capability parameters with smart defaults inferred from other fields.
+    """
+    # Smart defaults for typed capabilities
+    resolved_purity = purity or ("mutative" if side else "pure")
+    resolved_det = det or "deterministic"
+    resolved_scope = scope or "symbol"
+    resolved_par_safe = par_safe if par_safe is not None else (not side)
+
     return PrimitiveContract(
         input_keys=ik or [], output_keys=ok or [], cacheable=cacheable,
         side_effects=side, depends_on=deps or [], cost_estimate_ms=cost,
         token_estimate=tokens, invalidates=inv or [],
+        purity=resolved_purity, determinism=resolved_det,
+        invalidation_scope=resolved_scope, parallel_safe=resolved_par_safe,
     )
 
 

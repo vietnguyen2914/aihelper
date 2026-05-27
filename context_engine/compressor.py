@@ -5,6 +5,12 @@ Instead of sending raw files, aihelper compresses repository state into
 a structured JSON that maximizes the frontier model's reasoning density.
 
 Principle: frontier models should consume KNOWLEDGE GRAPHS, not raw repositories.
+
+v0.1: Compression confidence tracking with weighted decay.
+  - Tracks `compression_confidence` globally per project
+  - Applies weighted decay based on change type (from invalidation.py)
+  - Auto-triggers full recompression when confidence drops below threshold
+  - Conservative decay for high-risk modules
 """
 from __future__ import annotations
 
@@ -13,6 +19,70 @@ from typing import Any, Dict, List, Optional
 
 # Incremental compression cache
 _compression_cache: Dict[str, Dict[str, Any]] = {}
+
+# ── v0.1: Compression Confidence Tracking ─────────────────────
+
+# Per-project compression confidence (project_root_str → confidence)
+_compression_confidence: Dict[str, float] = {}
+
+
+def get_compression_confidence(project_root: Optional[Path] = None) -> float:
+    """Get current compression confidence for a project.
+
+    Returns 1.0 if no tracking yet (fresh baseline).
+    """
+    key = str(project_root) if project_root else "__global__"
+    return _compression_confidence.get(key, 1.0)
+
+
+def set_compression_confidence(confidence: float,
+                                project_root: Optional[Path] = None) -> None:
+    """Set compression confidence to a specific value (e.g., after recompression)."""
+    key = str(project_root) if project_root else "__global__"
+    _compression_confidence[key] = max(0.0, min(1.0, confidence))
+
+
+def apply_compression_decay(change_type: str,
+                             file_path: str = "",
+                             change_count: int = 1,
+                             project_root: Optional[Path] = None) -> Dict[str, Any]:
+    """Apply weighted decay to compression confidence after a change.
+
+    Uses weighted decay rates from invalidation.py.
+    Returns the new confidence and whether recompression is needed.
+    """
+    from .invalidation import compute_compression_confidence, should_recompress
+
+    current = get_compression_confidence(project_root)
+    new_confidence = compute_compression_confidence(
+        current, change_type, file_path, change_count
+    )
+    set_compression_confidence(new_confidence, project_root)
+
+    needs_recompress = should_recompress(new_confidence)
+
+    return {
+        "previous_confidence": current,
+        "new_confidence": new_confidence,
+        "decay_applied": round(current - new_confidence, 4),
+        "change_type": change_type,
+        "needs_recompression": needs_recompress,
+        "recompression_threshold": 0.60,
+    }
+
+
+def reset_compression_confidence(project_root: Optional[Path] = None) -> float:
+    """Reset compression confidence to 1.0 (full recompression baseline)."""
+    key = str(project_root) if project_root else "__global__"
+    _compression_confidence[key] = 1.0
+    return 1.0
+
+
+def force_recompress(project_root: Optional[Path] = None) -> None:
+    """Force clear cache + reset confidence — full recompression baseline."""
+    global _compression_cache
+    _compression_cache.clear()
+    reset_compression_confidence(project_root)
 
 
 def compress_context(context: Dict[str, Any], project_root: Path) -> Dict[str, Any]:

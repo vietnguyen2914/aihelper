@@ -280,28 +280,43 @@ The LLM is called only at decision points — not for orchestration.
 
 | Component | Status | Layer |
 |---|---|---|
-| Daemon (54 handlers, 0.3ms IPC) | ✅ Production | Layer 1 |
+| Daemon (55 handlers, 0.3ms IPC) | ✅ Production | Layer 1 |
 | Symbol graph + dependency graph (SQLite FTS5) | ✅ Production | Layer 1 |
-| **Cache invalidation** (`cache_diff`, `build_*_incremental`) | ✅ v0.0.7 | Layer 1 |
+| Cache invalidation (`cache_diff`, `build_*_incremental`) | ✅ v0.0.7 | Layer 1 |
+| Semantic invalidation (`classify_change`, `should_propagate_invalidation`) | ✅ v0.1 | Layer 1 |
 | Intent-aware routing (7 intents) | ✅ Production | Layer 1 |
 | Capability router (input → pipeline) | ✅ Production | Layer 1 |
 | Memory engine (decisions, debugging, preferences) | ✅ Production | Layer 1 |
 | Confidence scoring (5 factors) | ✅ Production | Layer 1 |
 | Patch planning + structural diff | ✅ Production | Layer 1 |
 | Impact graph (transitive analysis) | ✅ Production | Layer 1 |
+| Typed execution capabilities (purity, determinism, scope, parallel_safe) | ✅ v0.1 | Layer 1 |
+| Optimizer wired into workflow engine (3 passes + profiling) | ✅ v0.1 | Layer 1 |
+| Compression confidence decay (weighted, 7 rates) | ✅ v0.1 | Layer 1 |
 | Ollama model stack (5 models) | ✅ Production | Layer 2 |
 | CrossEncoder reranker | ✅ Production | Layer 2 |
 | MCP server (24 tools, 6 editors) | ✅ Production | Layer 1 |
 
-### 🚧 v0.0.9 Priorities
+### ✅ v0.0.9 — Completed
 
-| Priority | Component | Files |
-|---|---|---|
-| **P0** | `WorkflowEngine` — DSL + state machine | `context_engine/workflow_engine.py` |
-| **P0** | `TierRouter` — deterministic/ollama/frontier routing | `context_engine/tier_router.py` |
-| **P1** | `VerificationRuntime` — reusable verify commands | `context_engine/verify.py` |
-| **P1** | `ContextCompressor` — distilled cognition packages | `context_engine/compressor.py` |
-| **P2** | Workflow DSL schema | `context_engine/workflows/*.yaml` |
+| Priority | Component | Files | Status |
+|---|---|---|---|
+| **P0** | WorkflowEngine — DSL + state machine | `workflow_engine.py` | ✅ |
+| **P0** | TierRouter — deterministic/ollama/frontier routing | `tier_router.py` | ✅ |
+| **P1** | VerificationRuntime — reusable verify commands | `verify.py` | ✅ |
+| **P1** | ContextCompressor — distilled cognition packages | `compressor.py` | ✅ |
+| **P2** | Workflow DSL schema | `workflows/*.yaml` | ✅ |
+
+### ✅ v0.1 — Kernel Hardening (Current)
+
+| Priority | Component | Files | Status |
+|---|---|---|---|
+| **P0** | Typed Execution Capabilities | `primitives.py` | ✅ |
+| **P0** | Optimizer → Workflow Engine wiring | `optimizer.py` → `workflow_engine.py` | ✅ |
+| **P0** | Semantic Invalidation → Cache wiring | `invalidation.py` → `cache.py` | ✅ |
+| **P0** | Compression Confidence Decay | `compressor.py` + `invalidation.py` | ✅ |
+| **P1** | OptimizationResult profiling | `optimizer.py` | ✅ |
+| **P1** | invalidation_classify daemon handler | `daemon.py` | ✅ |
 
 ---
 
