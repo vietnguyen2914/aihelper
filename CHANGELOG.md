@@ -17,6 +17,30 @@ This project follows a lightweight release-note style. Dates use `YYYY-MM-DD`.
 - **`aihelper knowledge` CLI**: 6 subcommands — `add-decision`, `add-debug`, `set-preference`, `recall`, `dispatch`, `list`.
 - **init-config auto-detect**: Auto-detects project preferences from lock files and dispatches knowledge to all editor configs on every `aihelper init-config` run.
 
+### Added — Modular Intelligence Package
+
+- **`context_engine/intelligence/` package**: 11 modules, avg 50 lines each. Single responsibility per module.
+  - `schema.py` — DB schema + v1→v2 migration
+  - `storage.py` — Connection pool (WAL mode)
+  - `evidence.py` — Confidence escalation, scoring gate, contradiction logging
+  - `decisions.py` — Architectural decisions CRUD
+  - `debugging.py` — Debug history + recurrence detection
+  - `preferences.py` — Developer preferences key-value store
+  - `search.py` — FTS5 hybrid search
+  - `graph.py` — Graph-memory cross-reference links
+  - `capture.py` — Auto-capture observer (36 preference patterns)
+  - `handlers.py` — Daemon/MCP handler functions
+- **Evidence tracking**: confidence, frequency, source, recency on all entries.
+- **Lifecycle management**: active/deprecated/superseded status filtering.
+- **Contradiction detection**: knowledge_conflicts table for conflicting entries.
+- **Graph-memory fusion**: memory_graph_links table linking decisions to symbols.
+- **Scoring gate**: auto-capture discards entries below 0.35 confidence threshold.
+- **Frequency escalation**: repeated evidence boosts confidence over time.
+- **V1→V2 safe migration**: automatic upgrade preserving all existing data.
+- **Extended preference auto-detection**: 36 patterns across languages, databases, infra, architecture.
+- **Dynamic retrieval**: dispatch_knowledge(task_context=...) for targeted context filtering.
+- **Negative memory**: alternatives store rejection reasons as dicts with name and reason_rejected.
+
 ### Changed
 
 - `daemon.py`: 5 new knowledge handlers (60 total). Auto-capture observer.
