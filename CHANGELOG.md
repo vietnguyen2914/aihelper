@@ -6,6 +6,37 @@ This project follows a lightweight release-note style. Dates use `YYYY-MM-DD`.
 
 ## Unreleased
 
+## v0.0.8 - 2026-05-27
+
+### Added — Persistent Engineering Intelligence
+
+- **Cognitive Memory Engine** (`memory_engine.py`): SQLite + FTS5 persistent knowledge store with three knowledge types: architectural decisions, debugging history (auto-recurrence detection), developer preferences. ~490 lines, zero new dependencies.
+- **Knowledge Dispatcher** (`knowledge_dispatcher.py`): Formats and writes knowledge into each editor's native config files (markdown for Copilot/Claude, compact text for Codex). Auto-detect preferences from project lock files. ~300 lines.
+- **Auto-capture observer**: `_auto_capture_knowledge()` runs silently after every daemon request. Detects preferences from route keywords, captures decisions from config patches, captures debug entries from diagnostics. Auto-dispatches on bootstrap.
+- **5 new MCP tools**: `aihelper_knowledge_add_decision`, `aihelper_knowledge_add_debug`, `aihelper_knowledge_set_preference`, `aihelper_knowledge_recall`, `aihelper_knowledge_dispatch`. Total: 20 (was 15).
+- **`aihelper knowledge` CLI**: 6 subcommands — `add-decision`, `add-debug`, `set-preference`, `recall`, `dispatch`, `list`.
+- **init-config auto-detect**: Auto-detects project preferences from lock files and dispatches knowledge to all editor configs on every `aihelper init-config` run.
+
+### Changed
+
+- `daemon.py`: 5 new knowledge handlers (60 total). Auto-capture observer.
+- `session_bootstrap.py`: Knowledge recall — merges project-specific + global knowledge.
+- `mcp_server.py`: 20 MCP tools (was 15).
+- `scripts/init-config.sh` and `init-config.ps1`: Auto-detect + dispatch section.
+
+### Fixed
+
+- Session bootstrap now correctly merges project-specific and global knowledge.
+
+### Design Principles
+
+- **Not chat memory** — Structured types: decisions, debug history, preferences
+- **Zero new dependencies** — SQLite + FTS5 built into Python stdlib
+- **No new protocols** — Writes to editor native config files
+- **Auto-capture** — Daemon learns passively, no explicit user calls needed
+- **Idempotent** — All writes merge; safe to run repeatedly
+- **Failsafe** — Auto-capture never blocks; graceful degradation
+
 ## v0.0.7 - 2026-05-26
 
 ### Added — Semantic Knowledge Graph
@@ -48,17 +79,15 @@ This project follows a lightweight release-note style. Dates use `YYYY-MM-DD`.
 | SQLite DB size | 0.64MB (102 files) |
 | Journal mode | WAL |
 
-### Added
+### Added (v0.0.7 extras)
 
-- Windows support foundation: PowerShell/CMD launchers, PowerShell bootstrap,
-  Windows CI smoke job, and Windows install docs.
-- Portable daemon IPC: Unix sockets remain on macOS/Linux; Windows uses an
-  auto-detected TCP loopback endpoint.
+- Windows support foundation: PowerShell/CMD launchers, PowerShell bootstrap, Windows CI smoke job, and Windows install docs.
+- Portable daemon IPC: Unix sockets remain on macOS/Linux; Windows uses an auto-detected TCP loopback endpoint.
 - Contributor guide for focused workflow-driven pull requests.
 - Release notes for v0.0.6.
 - Blog draft explaining semantic routing versus giant prompts.
 
-### Changed
+### Changed (v0.0.7 extras)
 
 - README positioning now leads with the "Stop sending giant prompts" narrative.
 - Demo workflow previews use a wider table layout for better GitHub readability.

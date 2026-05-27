@@ -298,6 +298,29 @@ foreach ($projDir in $Projects) {
     Run-IntegrationScript "claude-integration.py" @("--path", $projDir)
 }
 
+# ── Auto-detect preferences & dispatch knowledge ──
+Write-Host ""
+Write-Host "-- Auto-detecting preferences & dispatching knowledge ------" -ForegroundColor Cyan
+Write-Host ""
+
+foreach ($projDir in $Projects) {
+    $projName = Split-Path $projDir -Leaf
+    Log "INFO" "Auto-detecting preferences for: $projName"
+    try {
+        $detectScript = "import sys; sys.path.insert(0, r'$RepoRoot'); from context_engine.knowledge_dispatcher import auto_detect_preferences, dispatch_knowledge; from pathlib import Path; result = auto_detect_preferences(Path(r'$projDir')); print(f'  Detected: {result.get(\"detected\", {})}'); print(f'  Stored: {result.get(\"stored\", 0)} preferences'); dispatch_result = dispatch_knowledge(project_root=Path(r'$projDir')); print(f'  Dispatched to: {list(dispatch_result.get(\"editors\", {}).keys())}'); print(f'  Knowledge: {dispatch_result.get(\"knowledge_summary\", {})}')"
+        if ($DryRun) {
+            Write-Host "  [DRY-RUN] Would auto-detect preferences and dispatch knowledge"
+        } else {
+            & python -c $detectScript 2>&1 | Out-Null
+            if ($LASTEXITCODE -ne 0) {
+                Log "SKIP" "  Knowledge dispatch skipped (Python error)"
+            }
+        }
+    } catch {
+        Log "SKIP" "  Knowledge dispatch skipped"
+    }
+}
+
 # ── Optional registry ──
 $registryFile = [Environment]::GetEnvironmentVariable("REGISTRY_FILE")
 if ($registryFile) {

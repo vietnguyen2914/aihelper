@@ -77,6 +77,26 @@ def bootstrap_session(project_root: Path) -> Dict[str, Any]:
     except Exception:
         pass
 
+    # ── 4.5. Structured knowledge (architectural decisions, prefs, debug history) ──
+    try:
+        from .memory_engine import get_all_knowledge
+    except ImportError:
+        from memory_engine import get_all_knowledge
+    try:
+        knowledge = get_all_knowledge(project_root, max_decisions=5, max_debugs=5)
+        global_knowledge = get_all_knowledge(None, max_decisions=5, max_debugs=5)
+        decisions = knowledge.get("decisions") or global_knowledge.get("decisions", [])
+        debugs = knowledge.get("debugs") or global_knowledge.get("debugs", [])
+        merged_prefs = {**global_knowledge.get("preferences", {}), **knowledge.get("preferences", {})}
+        if decisions:
+            context["architectural_decisions"] = decisions
+        if debugs:
+            context["debugging_history"] = debugs
+        if merged_prefs:
+            context["developer_preferences"] = merged_prefs
+    except Exception:
+        pass
+
     # ── 5. Git context ──────────────────────────────────────────
     try:
         result = subprocess.run(
