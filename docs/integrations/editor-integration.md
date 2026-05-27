@@ -33,7 +33,7 @@ and `aihelper` will:
 - generate Zed MCP config at `~/.config/zed/settings.json`
 - generate Gemini/Antigravity MCP config at `~/.gemini/config/mcp_config.json`
 - generate OpenCode MCP config at `~/.config/opencode/opencode.json`
-- generate global Codex config at `~/.codex/config.json`
+- generate global Codex config at `~/.codex/config.json` and register the aihelper MCP server via `codex mcp add`
 - generate Claude instructions at `~/.claude/aihelper-claude-instructions.md`
 - generate project-level Claude instructions at `<project>/.github/claude-instructions.md`
 
@@ -60,7 +60,7 @@ All scripts accept `--dry-run` to preview changes without writing files.
 | `zed-integration.py` | Zed Editor | `~/.config/zed/settings.json` (MCP server config) |
 | `gemini-integration.py` | Gemini / Antigravity | `~/.gemini/config/mcp_config.json` (MCP server config) |
 | `opencode-integration.py` | OpenCode | `~/.config/opencode/opencode.json` (MCP server config) |
-| `codex-integration.py` | Codex | `~/.codex/config.json` |
+| `codex-integration.py` | Codex CLI (v0.133.0+) | `~/.codex/config.json` + registers MCP server via `codex mcp add` |
 | `claude-integration.py` | Claude Desktop / CLI | `~/.claude/aihelper-claude-instructions.md`, `<project>/.github/claude-instructions.md` |
 
 ## Shared core: `scripts/integration_common.py`
@@ -85,7 +85,7 @@ Every integration script explicitly marks OS-specific code. Below is the complet
 | Script | Windows path | macOS path | Linux path | Unsupported |
 |--------|-------------|------------|------------|-------------|
 | `vscode-copilot-integration.py` | `%APPDATA%\Code\User\settings.json`, `%USERPROFILE%\.vscode\extensions`, `%ProgramFiles%\Microsoft VS Code\resources\app\extensions` | `~/Library/Application Support/Code/User/settings.json`, `/Applications/Visual Studio Code.app/...` | `~/.config/Code/User/settings.json`, `/usr/share/code/resources/app/extensions`, Flatpak `~/.var/...` | — |
-| `codex-integration.py` | `~/.codex/config.json` (via `Path.home()`) | same | same | — |
+| `codex-integration.py` | `~/.codex/config.json` (via `Path.home()`) + `codex mcp add` | same | same | — |
 | `claude-integration.py` | `~/.claude/` (via `Path.home()`) | same | same | — |
 | `zed-integration.py` | **N/A** (Zed not on Windows) | `~/Library/Application Support/Zed/settings.json`, `/Applications/Zed.app` | `~/.config/zed/settings.json` | Windows |
 | `gemini-integration.py` | `%APPDATA%\Gemini\config\mcp_config.json` | `~/.gemini/config/mcp_config.json` | same as macOS | — |
@@ -128,6 +128,38 @@ All scripts are called from `aihelper init-config` — one command sets up every
 ### Cross-platform
 
 Platform-conditional code is isolated to single-source-of-truth constants (`IS_WINDOWS`, `IS_MACOS`, `IS_LINUX`) from `integration_common`. Each script's OS-specific config paths are resolved in a single helper function at the top of the file.
+
+## Codex MCP integration details
+
+Codex CLI v0.133.0+ uses a dedicated `codex mcp` subcommand to manage external
+MCP servers. Configuration is stored in a SQLite database (`~/.codex/state_5.sqlite`)
+rather than a plain JSON config file.
+
+The `codex-integration.py` script:
+
+1. Writes `~/.codex/config.json` with `developer_instructions` (always, failsafe)
+2. Registers the aihelper MCP server via `codex mcp add` — equivalent to:
+   ```bash
+   codex mcp add aihelper -- python3 /path/to/aihelper/context_engine/mcp_server.py
+   ```
+
+**MCP transport**: stdio (the `mcp_server.py` speaks stdio-based MCP).
+**Idempotent**: `codex mcp add` overwrites any existing config for the same name.
+**Failsafe**: if the `codex` binary is not found, MCP registration is skipped.
+
+To inspect the registered servers:
+
+```bash
+codex mcp list                 # tabular view
+codex mcp list --json          # JSON view
+codex mcp get aihelper --json  # detail for one server
+```
+
+To remove the server:
+
+```bash
+codex mcp remove aihelper
+```
 
 ## Architecture
 
