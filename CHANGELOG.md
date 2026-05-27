@@ -16,7 +16,10 @@ This project follows a lightweight release-note style. Dates use `YYYY-MM-DD`.
 - **Verification Runtime** (`verify.py`): 4 verification commands (architecture, auth-safety, regression-risk, dependency-health). 100% deterministic. ~175 lines.
 - **Context Compressor** (`compressor.py`): Cognition packages with incremental `_compression_cache`. ~160 lines.
 - **Compression Fidelity** (`compressor_fidelity.py`): 6 automated checks for context preservation. ~210 lines.
-- **Workflow DSL**: 5 YAML workflow definitions in `context_engine/workflows/`.
+- **Signature Invalidation** (`invalidation.py`): AST-based signature extraction for 5 languages. Distinguishes body-only from signature changes. JSON-line invalidation logging. ~255 lines.
+- **Optimizer** (`optimizer.py`): 3 compiler-inspired passes — deduplication, constant folding, dead branch pruning. ~125 lines.
+- **Mermaid Export** (`mermaid_export.py`): Visualizes primitive dependency graph, execution DAG stages, and category overview. ~125 lines.
+- **Workflow DSL**: 5 YAML workflow definitions in `context_engine/workflows/` (v1.1, uses: composition).
 - **4 new MCP tools**: `aihelper_workflow_run`, `aihelper_tier_route`, `aihelper_verify`, `aihelper_compress_context`. Total: 24 (was 20).
 - **4 new CLI commands**: `aihelper workflow`, `aihelper verify`, `aihelper compress`, `aihelper tier-route`.
 
