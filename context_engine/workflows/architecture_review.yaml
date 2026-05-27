@@ -1,29 +1,14 @@
 name: "Architecture Review"
-description: "Deep architecture analysis: graph, callers, impact, memory, constraints"
-version: "1.0"
+description: "Deep architecture analysis using primitives composition"
+version: "1.1"
 
 phases:
-  - name: check_architecture_rules
+  - name: analyze
     kind: deterministic
-    handler: check_architecture_rules
-    description: "Find circular deps and dead code"
+    uses: [verify.architecture, memory.recall, git.diff, context.compress]
+    description: "Full architecture scan + memory + git + compression"
 
-  - name: retrieve_memory
-    kind: deterministic
-    handler: retrieve_memory
-    description: "Retrieve past architectural decisions"
-
-  - name: analyze_git_diff
-    kind: deterministic
-    handler: analyze_git_diff
-    description: "Review recent structural changes"
-
-  - name: build_context_package
-    kind: deterministic
-    handler: build_context_package
-    description: "Build compressed cognition package"
-
-  - name: architecture_report
+  - name: report
     kind: frontier
     prompt_template: |
       You are reviewing the architecture of a codebase.

@@ -390,6 +390,7 @@ def _load_external_handlers() -> None:
         from .tier_router import handle_tier_route as _htr
         from .verify import handle_verify as _hv
         from .compressor import handle_compress_context as _hcc
+        from .compressor_fidelity import handle_compression_fidelity as _hcf
         _external_handlers = {
             "editor_context": _hec,
             "lsp_definition": _hld,
@@ -434,6 +435,7 @@ def _load_external_handlers() -> None:
             "tier_route": _htr,
             "verify": _hv,
             "compress_context": _hcc,
+            "compression_fidelity": _hcf,
         }
     except ImportError:
         from confidence import handle_confidence as _hc
@@ -457,6 +459,7 @@ def _load_external_handlers() -> None:
         from tier_router import handle_tier_route as _htr
         from verify import handle_verify as _hv
         from compressor import handle_compress_context as _hcc
+        from compressor_fidelity import handle_compression_fidelity as _hcf
         _external_handlers = {
             "editor_context": _hec,
             "lsp_definition": _hld,
@@ -501,6 +504,7 @@ def _load_external_handlers() -> None:
             "tier_route": _htr,
             "verify": _hv,
             "compress_context": _hcc,
+            "compression_fidelity": _hcf,
         }
 
 def _get_methods() -> Dict[str, Callable]:
