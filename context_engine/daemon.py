@@ -391,6 +391,8 @@ def _load_external_handlers() -> None:
         from .verify import handle_verify as _hv
         from .compressor import handle_compress_context as _hcc
         from .compressor_fidelity import handle_compression_fidelity as _hcf
+        from .invalidation import handle_invalidation_log as _hil
+        from .mermaid_export import handle_mermaid_export as _hme
         _external_handlers = {
             "editor_context": _hec,
             "lsp_definition": _hld,
@@ -436,6 +438,8 @@ def _load_external_handlers() -> None:
             "verify": _hv,
             "compress_context": _hcc,
             "compression_fidelity": _hcf,
+            "invalidation_log": _hil,
+            "mermaid_export": _hme,
         }
     except ImportError:
         from confidence import handle_confidence as _hc
@@ -460,6 +464,8 @@ def _load_external_handlers() -> None:
         from verify import handle_verify as _hv
         from compressor import handle_compress_context as _hcc
         from compressor_fidelity import handle_compression_fidelity as _hcf
+        from invalidation import handle_invalidation_log as _hil
+        from mermaid_export import handle_mermaid_export as _hme
         _external_handlers = {
             "editor_context": _hec,
             "lsp_definition": _hld,
@@ -505,6 +511,8 @@ def _load_external_handlers() -> None:
             "verify": _hv,
             "compress_context": _hcc,
             "compression_fidelity": _hcf,
+            "invalidation_log": _hil,
+            "mermaid_export": _hme,
         }
 
 def _get_methods() -> Dict[str, Callable]:
