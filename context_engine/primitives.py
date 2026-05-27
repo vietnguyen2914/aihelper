@@ -1,53 +1,125 @@
 """
 Primitives Registry — reusable, named, composable engineering primitives.
 
-Design: All workflow handlers are registered as named primitives that can be
-composed declaratively in YAML workflows. This prevents handler duplication
-across workflows and enables the `uses: [...]` syntax.
+Design: All workflow handlers are registered as named primitives with execution
+contracts. Contracts declare inputs, outputs, cacheability, dependencies, and
+cost estimates — enabling the runtime to:
+  - Execute independent primitives in parallel
+  - Cache and skip redundant computations
+  - Compute execution DAG for partial recomputation
+  - Collect runtime profiling metrics
 
 Each primitive has:
   - name: dot-separated namespace (e.g. "graph.trace_callers")
   - description: what it does
   - handler: callable function
-  - category: graph | verify | memory | git | risk | test
+  - contract: PrimitiveContract with execution semantics
 """
 from __future__ import annotations
 
+import time
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Set
+
+
+# ── Primitive Contract ───────────────────────────────────────────
+
+@dataclass
+class PrimitiveContract:
+    """Execution semantics for a primitive — compiler IR for the runtime.
+
+    This is the key abstraction that unlocks:
+      - parallel execution (via input/output dependency analysis)
+      - caching (via cacheable + input fingerprinting)
+      - partial recomputation (via depends_on invalidation)
+      - optimization (via cost estimates)
+      - profiling (via actual vs estimated metrics)
+    """
+    input_keys: List[str] = field(default_factory=list)
+    output_keys: List[str] = field(default_factory=list)
+    cacheable: bool = False
+    side_effects: bool = False
+    depends_on: List[str] = field(default_factory=list)
+    cost_estimate_ms: float = 1.0
+    token_estimate: int = 0
+    invalidates: List[str] = field(default_factory=list)
+
+    def fingerprint_inputs(self, context: Dict[str, Any]) -> str:
+        """Create a cache key from the inputs this primitive depends on."""
+        import hashlib, json
+        if not self.input_keys:
+            return ""
+        subset = {k: context.get(k) for k in self.input_keys if k in context}
+        raw = json.dumps(subset, sort_keys=True, default=str)
+        return hashlib.md5(raw.encode()).hexdigest()[:12]
 
 
 # ── Primitive definition ─────────────────────────────────────────
 
 class Primitive:
-    """A named, reusable engineering operation."""
-    __slots__ = ("name", "description", "handler", "category", "deterministic")
+    """A named, reusable engineering operation with execution contract."""
+    __slots__ = ("name", "description", "handler", "category", "deterministic", "contract")
 
     def __init__(self, name: str, description: str, handler: Callable,
-                 category: str = "general", deterministic: bool = True):
+                 category: str = "general", deterministic: bool = True,
+                 contract: Optional[PrimitiveContract] = None):
         self.name = name
         self.description = description
         self.handler = handler
         self.category = category
         self.deterministic = deterministic
+        self.contract = contract or PrimitiveContract()
 
     def execute(self, context: Dict[str, Any], root: Path) -> Dict[str, Any]:
-        """Execute this primitive, injecting project root if handler accepts it."""
+        """Execute this primitive and return immutable output patch.
+
+        The output is a pure dict — it does NOT mutate shared context directly.
+        The caller is responsible for deterministic merging.
+        """
         import inspect
         sig = inspect.signature(self.handler)
         params = list(sig.parameters.keys())
+        result: Dict[str, Any]
+        t0 = time.time()
         if "project_root" in params or "root" in params:
-            return self.handler(context, root)
-        return self.handler(context, root)
+            result = self.handler(context, root)
+        else:
+            result = self.handler(context, root)
+        elapsed = (time.time() - t0) * 1000
+        # Tag result with execution metadata for profiling
+        result["_primitive"] = self.name
+        result["_duration_ms"] = round(elapsed, 2)
+        result["_cached"] = False
+        return result
 
     def __repr__(self):
         return f"Primitive({self.name}, {self.category})"
+
+    def depends_on_primitive(self, other_name: str) -> bool:
+        """Check if this primitive depends on another's outputs."""
+        return other_name in self.contract.depends_on
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Serializable representation for profiling/cli."""
+        return {
+            "name": self.name,
+            "description": self.description,
+            "category": self.category,
+            "deterministic": self.deterministic,
+            "cacheable": self.contract.cacheable,
+            "side_effects": self.contract.side_effects,
+            "input_keys": self.contract.input_keys,
+            "output_keys": self.contract.output_keys,
+            "depends_on": self.contract.depends_on,
+            "cost_estimate_ms": self.contract.cost_estimate_ms,
+            "token_estimate": self.contract.token_estimate,
+        }
 
 
 # ── Primitive Handler Implementations ────────────────────────────
 
 def _graph_trace_callers(ctx: Dict, root: Path) -> Dict:
-    """Trace all callers of a target symbol."""
     from .graph_db import get_db
     from .graph_query import _find_symbol_id
     sym_id = ctx.get("symbol_id", "")
@@ -57,7 +129,6 @@ def _graph_trace_callers(ctx: Dict, root: Path) -> Dict:
 
 
 def _graph_trace_callees(ctx: Dict, root: Path) -> Dict:
-    """Trace all callees of a target symbol."""
     from .graph_db import get_db
     db = get_db(root)
     sym_id = ctx.get("symbol_id", "")
@@ -66,7 +137,6 @@ def _graph_trace_callees(ctx: Dict, root: Path) -> Dict:
 
 
 def _graph_analyze_target(ctx: Dict, root: Path) -> Dict:
-    """Analyze a target symbol: callers, callees, symbol ID."""
     target = ctx.get("target", "")
     if not target:
         return {"error": "no target specified"}
@@ -85,7 +155,6 @@ def _graph_analyze_target(ctx: Dict, root: Path) -> Dict:
 
 
 def _graph_impact_radius(ctx: Dict, root: Path) -> Dict:
-    """Calculate impact radius for a symbol."""
     from .graph_db import get_db
     db = get_db(root)
     sym_id = ctx.get("symbol_id", "")
@@ -96,7 +165,6 @@ def _graph_impact_radius(ctx: Dict, root: Path) -> Dict:
 
 
 def _graph_dependency_inspect(ctx: Dict, root: Path) -> Dict:
-    """Inspect file dependencies."""
     from .graph_db import get_db
     db = get_db(root)
     deps = db.get_file_dependencies(ctx.get("file", ""))
@@ -104,32 +172,27 @@ def _graph_dependency_inspect(ctx: Dict, root: Path) -> Dict:
 
 
 def _verify_architecture_health(ctx: Dict, root: Path) -> Dict:
-    """Verify architecture: circular deps, dead code."""
     from .verify import verify_architecture
     return verify_architecture(root)
 
 
 def _verify_regression_risk(ctx: Dict, root: Path) -> Dict:
-    """Verify regression risk."""
     from .verify import verify_regression_risk
     target = ctx.get("target", "")
     return verify_regression_risk(root, target)
 
 
 def _verify_dependency_health(ctx: Dict, root: Path) -> Dict:
-    """Verify dependency health."""
     from .verify import verify_dependency_health
     return verify_dependency_health(root)
 
 
 def _verify_auth_safety(ctx: Dict, root: Path) -> Dict:
-    """Verify auth safety."""
     from .verify import verify_auth_safety
     return verify_auth_safety(root)
 
 
 def _memory_recall(ctx: Dict, root: Path) -> Dict:
-    """Retrieve relevant memories."""
     try:
         from .intelligence.search import search_knowledge
         query = ctx.get("query", ctx.get("target", ctx.get("task", "")))
@@ -140,7 +203,6 @@ def _memory_recall(ctx: Dict, root: Path) -> Dict:
 
 
 def _git_diff(ctx: Dict, root: Path) -> Dict:
-    """Get recent git changes."""
     import subprocess
     try:
         result = subprocess.run(
@@ -153,7 +215,6 @@ def _git_diff(ctx: Dict, root: Path) -> Dict:
 
 
 def _risk_classify(ctx: Dict, root: Path) -> Dict:
-    """Classify risk level from affected files."""
     files = ctx.get("files", [])
     risk = "low"
     if len(files) > 20:
@@ -166,7 +227,6 @@ def _risk_classify(ctx: Dict, root: Path) -> Dict:
 
 
 def _test_run(ctx: Dict, root: Path) -> Dict:
-    """Run test suite."""
     import subprocess
     try:
         result = subprocess.run(
@@ -183,23 +243,19 @@ def _test_run(ctx: Dict, root: Path) -> Dict:
 
 
 def _test_generate_stub(ctx: Dict, root: Path) -> Dict:
-    """Generate test stub placeholder."""
     return {"test_stub_ready": True, "test_file": ctx.get("target", "") + ".test"}
 
 
 def _context_compress(ctx: Dict, root: Path) -> Dict:
-    """Build compressed cognition package."""
     from .compressor import compress_context
     return compress_context(ctx, root)
 
 
 def _lint_run(ctx: Dict, root: Path) -> Dict:
-    """Run linter (placeholder)."""
     return {"lint_ok": True, "issues": 0}
 
 
 def _summary_generate(ctx: Dict, root: Path) -> Dict:
-    """Generate human-readable summary from context."""
     parts = []
     if ctx.get("passed") is not None:
         parts.append(f"Tests: {'PASSED' if ctx['passed'] else 'FAILED'}")
@@ -216,89 +272,130 @@ def _summary_generate(ctx: Dict, root: Path) -> Dict:
 
 # ── Registry ─────────────────────────────────────────────────────
 
+def _c(*, ik=None, ok=None, cacheable=False, side=False, deps=None, cost=1.0, tokens=0, inv=None):
+    """Shorthand factory for PrimitiveContract."""
+    return PrimitiveContract(
+        input_keys=ik or [], output_keys=ok or [], cacheable=cacheable,
+        side_effects=side, depends_on=deps or [], cost_estimate_ms=cost,
+        token_estimate=tokens, invalidates=inv or [],
+    )
+
+
 def build_registry() -> Dict[str, Primitive]:
-    """Build the complete primitive registry."""
+    """Build the complete primitive registry with execution contracts."""
     return {
-        # Graph primitives
+        # ── Graph primitives ──────────────────────────────────────
+        "graph.analyze_target": Primitive(
+            "graph.analyze_target", "Analyze target: callers, callees, symbol ID",
+            _graph_analyze_target, "graph",
+            contract=_c(ik=["target"], ok=["symbol_id", "callers", "callees", "caller_list", "callee_list"],
+                        cacheable=True, deps=[], cost=3.0, tokens=0),
+        ),
         "graph.trace_callers": Primitive(
             "graph.trace_callers", "Trace all callers of target symbol",
             _graph_trace_callers, "graph",
+            contract=_c(ik=["symbol_id"], ok=["callers", "caller_count"],
+                        cacheable=True, deps=["graph.analyze_target"], cost=2.0, tokens=0),
         ),
         "graph.trace_callees": Primitive(
             "graph.trace_callees", "Trace all callees of target symbol",
             _graph_trace_callees, "graph",
-        ),
-        "graph.analyze_target": Primitive(
-            "graph.analyze_target", "Analyze target: callers, callees, symbol ID",
-            _graph_analyze_target, "graph",
+            contract=_c(ik=["symbol_id"], ok=["callees", "callee_count"],
+                        cacheable=True, deps=["graph.analyze_target"], cost=2.0, tokens=0),
         ),
         "graph.impact_radius": Primitive(
             "graph.impact_radius", "Calculate impact radius and risk",
             _graph_impact_radius, "graph",
+            contract=_c(ik=["symbol_id"], ok=["impacted_files", "risk", "files"],
+                        cacheable=True, deps=["graph.analyze_target"], cost=3.0, tokens=0),
         ),
         "graph.dependency_inspect": Primitive(
             "graph.dependency_inspect", "Inspect file dependencies",
             _graph_dependency_inspect, "graph",
+            contract=_c(ik=["file"], ok=["dependencies", "dep_count"],
+                        cacheable=True, cost=2.0, tokens=0),
         ),
-        # Verification primitives
+        # ── Verification primitives ───────────────────────────────
         "verify.architecture": Primitive(
             "verify.architecture", "Check circular deps, dead code",
             _verify_architecture_health, "verify",
+            contract=_c(ok=["circular_deps", "dead_code", "passed", "violations"],
+                        cacheable=True, cost=10.0, tokens=0),
         ),
         "verify.regression_risk": Primitive(
             "verify.regression_risk", "Predict regression risk via impact + memory",
             _verify_regression_risk, "verify",
+            contract=_c(ik=["target"], ok=["risk_level", "affected_files", "file_list", "past_bugs"],
+                        cacheable=False, cost=5.0, tokens=0),
         ),
         "verify.dependency_health": Primitive(
             "verify.dependency_health", "Check dependency chains health",
             _verify_dependency_health, "verify",
+            contract=_c(ok=["circular_deps", "dead_code", "deep_chains", "health_score"],
+                        cacheable=True, cost=8.0, tokens=0),
         ),
         "verify.auth_safety": Primitive(
             "verify.auth_safety", "Audit auth flow for secrets",
             _verify_auth_safety, "verify",
+            contract=_c(ok=["findings", "severity", "passed"],
+                        cacheable=False, side=True, cost=50.0, tokens=0),
         ),
-        # Memory primitives
+        # ── Memory primitives ────────────────────────────────────
         "memory.recall": Primitive(
             "memory.recall", "Retrieve historical decisions, bugs, preferences",
             _memory_recall, "memory",
+            contract=_c(ik=["target", "task"], ok=["memories", "count"],
+                        cacheable=True, cost=3.0, tokens=0),
         ),
-        # Git primitives
+        # ── Git primitives ───────────────────────────────────────
         "git.diff": Primitive(
             "git.diff", "Get recent git changes summary",
             _git_diff, "git",
+            contract=_c(ok=["diff_stat"], cacheable=False, side=True, cost=500.0, tokens=0),
         ),
-        # Risk primitives
+        # ── Risk primitives ──────────────────────────────────────
         "risk.classify": Primitive(
             "risk.classify", "Classify risk level from affected files",
             _risk_classify, "risk",
+            contract=_c(ik=["files"], ok=["risk_level", "files_affected"],
+                        cacheable=True, deps=["graph.impact_radius"], cost=0.5, tokens=0),
         ),
-        # Test primitives
+        # ── Test primitives ──────────────────────────────────────
         "test.run": Primitive(
             "test.run", "Run test suite",
             _test_run, "test",
+            contract=_c(ok=["passed", "output", "failed"],
+                        cacheable=False, side=True, cost=30000.0, tokens=0),
         ),
         "test.generate_stub": Primitive(
             "test.generate_stub", "Generate test file stub",
             _test_generate_stub, "test",
+            contract=_c(ik=["target"], ok=["test_stub_ready", "test_file"],
+                        cacheable=True, cost=1.0, tokens=0),
         ),
-        # Context primitives
+        # ── Context primitives ───────────────────────────────────
         "context.compress": Primitive(
             "context.compress", "Build distilled cognition package",
             _context_compress, "context",
+            contract=_c(ik=["target", "question"], ok=["system_state", "question"],
+                        cacheable=True, cost=15.0, tokens=0),
         ),
         "context.summarize": Primitive(
             "context.summarize", "Generate human-readable summary",
             _summary_generate, "context",
+            contract=_c(ok=["summary_text"], cacheable=True, cost=2.0, tokens=0),
         ),
-        # Lint primitives
+        # ── Lint primitives ──────────────────────────────────────
         "lint.run": Primitive(
             "lint.run", "Run linter checks",
             _lint_run, "lint",
+            contract=_c(ok=["lint_ok", "issues"], cacheable=False, cost=10000.0, tokens=0),
         ),
     }
 
 
-# Module-level cached registry
+# ── Module-level cached registry ─────────────────────────────────
+
 _registry: Optional[Dict[str, Primitive]] = None
 
 
@@ -310,16 +407,64 @@ def get_registry() -> Dict[str, Primitive]:
     return _registry
 
 
-def list_primitives() -> List[Dict[str, str]]:
-    """List all available primitives with descriptions."""
+def list_primitives() -> List[Dict[str, Any]]:
+    """List all available primitives with full contract details."""
     reg = get_registry()
-    return [
-        {"name": p.name, "description": p.description, "category": p.category,
-         "deterministic": p.deterministic}
-        for p in reg.values()
-    ]
+    return [p.to_dict() for p in reg.values()]
 
 
 def get_primitive(name: str) -> Optional[Primitive]:
     """Get a primitive by name."""
     return get_registry().get(name)
+
+
+# ── Execution DAG helpers ───────────────────────────────────────
+
+def build_execution_dag(primitive_names: List[str]) -> List[List[str]]:
+    """Group primitives into parallel execution stages based on dependencies.
+
+    Returns a list of stages. Primitives within the same stage can run in parallel.
+    Primitives in later stages depend on outputs from earlier stages.
+    """
+    reg = get_registry()
+    stages: List[List[str]] = []
+    executed: Set[str] = set()
+
+    while len(executed) < len(primitive_names):
+        stage: List[str] = []
+        for name in primitive_names:
+            if name in executed:
+                continue
+            prim = reg.get(name)
+            if prim is None:
+                stage.append(name)
+                continue
+            # Can run if all dependencies are already executed
+            deps_satisfied = all(
+                d in executed or d not in primitive_names
+                for d in prim.contract.depends_on
+            )
+            if deps_satisfied:
+                stage.append(name)
+        if not stage:
+            # Remaining unresolved — run sequentially as fallback
+            stage = [n for n in primitive_names if n not in executed]
+        stages.append(stage)
+        executed.update(stage)
+
+    return stages
+
+
+def compute_parallelism_ratio(primitive_names: List[str]) -> float:
+    """Compute the theoretical parallelism ratio for a set of primitives.
+
+    1.0 = fully parallel (all can run simultaneously)
+    0.0 = fully sequential (each depends on previous)
+    """
+    stages = build_execution_dag(primitive_names)
+    total = len(primitive_names)
+    if total <= 1:
+        return 1.0
+    # Parallelism ratio = 1 - (stages / primitives)
+    # Fewer stages = more parallelism
+    return round(1.0 - (len(stages) - 1) / max(total - 1, 1), 2)

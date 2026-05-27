@@ -9,11 +9,21 @@ Principle: frontier models should consume KNOWLEDGE GRAPHS, not raw repositories
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
+
+# Incremental compression cache
+_compression_cache: Dict[str, Dict[str, Any]] = {}
 
 
 def compress_context(context: Dict[str, Any], project_root: Path) -> Dict[str, Any]:
-    """Compress engineering context into a cognition package."""
+    """Compress context with incremental caching."""
+    target = context.get("target", context.get("question", ""))
+    if target:
+        import hashlib
+        ck = hashlib.md5(target.encode()).hexdigest()[:12]
+        if ck in _compression_cache:
+            return _compression_cache[ck]
+
     package = {
         "system_state": {
             "architecture": _extract_architecture(context, project_root),
@@ -24,6 +34,11 @@ def compress_context(context: Dict[str, Any], project_root: Path) -> Dict[str, A
         },
         "question": context.get("question", context.get("task", "")),
     }
+
+    if target:
+        import hashlib
+        _compression_cache[hashlib.md5(target.encode()).hexdigest()[:12]] = package
+
     return package
 
 

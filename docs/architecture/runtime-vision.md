@@ -280,8 +280,9 @@ The LLM is called only at decision points — not for orchestration.
 
 | Component | Status | Layer |
 |---|---|---|
-| Daemon (49 handlers, 0.3ms IPC) | ✅ Production | Layer 1 |
+| Daemon (54 handlers, 0.3ms IPC) | ✅ Production | Layer 1 |
 | Symbol graph + dependency graph (SQLite FTS5) | ✅ Production | Layer 1 |
+| **Cache invalidation** (`cache_diff`, `build_*_incremental`) | ✅ v0.0.7 | Layer 1 |
 | Intent-aware routing (7 intents) | ✅ Production | Layer 1 |
 | Capability router (input → pipeline) | ✅ Production | Layer 1 |
 | Memory engine (decisions, debugging, preferences) | ✅ Production | Layer 1 |
@@ -290,7 +291,7 @@ The LLM is called only at decision points — not for orchestration.
 | Impact graph (transitive analysis) | ✅ Production | Layer 1 |
 | Ollama model stack (5 models) | ✅ Production | Layer 2 |
 | CrossEncoder reranker | ✅ Production | Layer 2 |
-| MCP server (20 tools, 6 editors) | ✅ Production | Layer 1 |
+| MCP server (24 tools, 6 editors) | ✅ Production | Layer 1 |
 
 ### 🚧 v0.0.9 Priorities
 
