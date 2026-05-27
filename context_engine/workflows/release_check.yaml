@@ -1,35 +1,15 @@
 name: "Release Check"
-description: "Pre-release validation: tests, lint, architecture, dependencies, git diff"
-version: "1.0"
+description: "Pre-release validation using primitives composition"
+version: "1.1"
 
 phases:
-  - name: run_tests
+  - name: validate
     kind: deterministic
-    handler: run_tests
-    description: "Run full test suite"
-
-  - name: run_lint
-    kind: deterministic
-    handler: run_lint
-    description: "Run linter"
+    uses: [test.run, lint.run, verify.architecture, graph.dependency_inspect, git.diff]
+    description: "Run all deterministic checks in one phase"
     continue_on_failure: true
 
-  - name: check_architecture_rules
-    kind: deterministic
-    handler: check_architecture_rules
-    description: "Check for circular deps, dead code"
-
-  - name: inspect_dependencies
-    kind: deterministic
-    handler: inspect_dependencies
-    description: "Analyze dependency graph changes"
-
-  - name: analyze_git_diff
-    kind: deterministic
-    handler: analyze_git_diff
-    description: "Review recent changes"
-
-  - name: generate_summary
+  - name: summarize
     kind: local_model
     model: qwen3.5:4b-16k
     prompt_template: |

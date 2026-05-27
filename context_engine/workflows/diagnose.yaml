@@ -1,29 +1,14 @@
 name: "Diagnose Bug"
-description: "Disciplined diagnosis loop: reproduce → trace → inspect → hypothesize → fix → verify"
-version: "1.0"
+description: "Disciplined diagnosis loop using primitives composition"
+version: "1.1"
 
 phases:
-  - name: analyze_target
+  - name: analyze
     kind: deterministic
-    handler: analyze_target
-    description: "Trace symbol dependencies and callers"
+    uses: [graph.analyze_target, memory.recall, graph.trace_callers, graph.trace_callees]
+    description: "Trace target, recall memories, trace callers and callees"
 
-  - name: retrieve_memory
-    kind: deterministic
-    handler: retrieve_memory
-    description: "Retrieve historical bugs related to this target"
-
-  - name: trace_callers
-    kind: deterministic
-    handler: trace_callers
-    description: "Trace all callers of the target symbol"
-
-  - name: trace_callees
-    kind: deterministic
-    handler: trace_callees
-    description: "Trace all callees of the target symbol"
-
-  - name: hypothesize_fix
+  - name: hypothesize
     kind: local_model
     model: qwen3.5:4b-16k
     prompt_template: |
@@ -37,7 +22,7 @@ phases:
       Based on this context, what is the most likely root cause?
       Propose a fix with minimal code changes.
 
-  - name: verify_fix
+  - name: verify
     kind: deterministic
-    handler: run_tests
+    uses: [test.run]
     description: "Run tests to verify the fix"

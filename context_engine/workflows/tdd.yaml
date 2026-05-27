@@ -1,24 +1,24 @@
 name: "TDD — Test-Driven Development"
-description: "Red-green-refactor loop for a target module"
-version: "1.0"
+description: "Red-green-refactor loop for a target module using primitives composition"
+version: "1.1"
 
 phases:
-  - name: analyze_target
+  - name: analyze
     kind: deterministic
-    handler: analyze_target
-    description: "Trace dependencies and callers of the target"
+    uses: [graph.analyze_target, memory.recall]
+    description: "Trace dependencies and recall historical context"
 
-  - name: generate_test_stub
+  - name: generate_stub
     kind: deterministic
-    handler: generate_test_stub
+    uses: [test.generate_stub]
     description: "Generate minimal test file stub"
 
-  - name: run_test_expect_fail
+  - name: expect_red
     kind: deterministic
-    handler: run_test_expect_fail
+    uses: [test.run]
     description: "Run tests — expect RED (failing test)"
 
-  - name: implement_patch
+  - name: implement
     kind: local_model
     model: qwen3.5:4b-16k
     prompt_template: |
@@ -27,22 +27,23 @@ phases:
       - Callers: {caller_list}
       - Callees: {callee_list}
       - Test stub ready: {test_stub_ready}
+      - Historical context: {memories}
 
       Implement the minimal code change to make the test pass.
       Focus on correctness, not optimization.
 
-  - name: run_test_expect_pass
+  - name: expect_green
     kind: deterministic
-    handler: run_tests
+    uses: [test.run]
     description: "Run tests — expect GREEN"
 
-  - name: run_regression_suite
+  - name: regression
     kind: deterministic
-    handler: run_tests
+    uses: [test.run]
     description: "Run full regression suite"
     continue_on_failure: true
 
-  - name: summarize_impact
+  - name: summarize
     kind: deterministic
-    handler: summarize_impact
+    uses: [graph.impact_radius, context.summarize]
     description: "Calculate impact radius and risk level"

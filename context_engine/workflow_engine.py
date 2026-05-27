@@ -2,8 +2,10 @@
 Workflow Runtime Engine — deterministic state machine execution.
 
 Design: Workflows are defined as YAML files in context_engine/workflows/.
-Each workflow is a sequence of phases. Each phase either executes
-deterministically (Python) or invokes AI at decision points.
+Each workflow is a sequence of phases. Phases can use:
+  - `handler: name` — call a built-in handler
+  - `uses: [primitive1, primitive2, ...]` — compose named primitives from registry
+  - `kind: local_model | frontier` — invoke AI at decision points
 
 CLI: aihelper workflow run <name> [--params ...]
 MCP: aihelper_workflow_run
@@ -48,6 +50,9 @@ class WorkflowResult:
     ai_calls: int = 0
     deterministic_steps: int = 0
     summary: str = ""
+    # ── Observability (v0.0.9) ──
+    trace_id: str = ""
+    timestamp: str = ""
 
 
 class WorkflowEngine:
@@ -57,6 +62,7 @@ class WorkflowEngine:
         self.root = project_root
         self._handlers: Dict[str, Callable] = {}
         self._register_builtin_handlers()
+        self._observability_enabled = True
 
     def _register_builtin_handlers(self):
         """Register all deterministic handlers available in the runtime."""
@@ -108,6 +114,9 @@ class WorkflowEngine:
 
     def run(self, name: str, params: Optional[Dict[str, Any]] = None) -> WorkflowResult:
         """Execute a workflow by name."""
+        import uuid
+        from datetime import datetime, timezone
+
         params = params or {}
         wf_def = self.load_workflow(name)
         phases_results = []
@@ -117,6 +126,9 @@ class WorkflowEngine:
         det_steps = 0
         context = dict(params)
         context["_project_root"] = str(self.root)
+
+        trace_id = str(uuid.uuid4())[:8]
+        timestamp = datetime.now(timezone.utc).isoformat()
 
         for phase_def in wf_def.get("phases", []):
             phase_name = phase_def["name"]
@@ -147,22 +159,34 @@ class WorkflowEngine:
                     total_tokens=total_tokens, total_duration_ms=total_duration,
                     ai_calls=ai_calls, deterministic_steps=det_steps,
                     summary=f"Gate '{phase_name}' failed: {result.error}",
+                    trace_id=trace_id, timestamp=timestamp,
                 )
 
             if not result.success and not phase_def.get("continue_on_failure"):
                 break
 
-        return WorkflowResult(
+        wf_result = WorkflowResult(
             workflow=name, phases=phases_results,
             success=all(p.success for p in phases_results),
             total_tokens=total_tokens, total_duration_ms=total_duration,
             ai_calls=ai_calls, deterministic_steps=det_steps,
             summary=f"{wf_def['name']}: {det_steps} deterministic, {ai_calls} AI calls, {total_tokens} tokens",
+            trace_id=trace_id, timestamp=timestamp,
         )
 
+        # ── Observability: record workflow run ──
+        self._record_observability(wf_result)
+
+        return wf_result
+
     def _execute_phase(self, phase_def: Dict, context: Dict) -> PhaseResult:
-        """Execute a single phase."""
-        handler_name = phase_def.get("handler", phase_def["name"])
+        """Execute a single phase, with `uses: [...]` primitive composition support."""
+        # ── Primitive Composition: `uses: [primitive1, primitive2, ...]` ──
+        uses = phase_def.get("uses", [])
+        if uses:
+            return self._execute_primitives(uses, phase_def, context)
+
+        handler_name = phase_def.get("handler", phase_def.get("name", ""))
         handler = self._handlers.get(handler_name)
 
         if handler:
@@ -181,6 +205,71 @@ class WorkflowEngine:
 
         return PhaseResult(phase="", kind=PhaseKind.DETERMINISTIC,
                            success=False, error=f"No handler for {handler_name}")
+
+    def _execute_primitives(self, primitives: List[str], phase_def: Dict,
+                            context: Dict) -> PhaseResult:
+        """Execute a list of named primitives from the registry."""
+        from .primitives import get_primitive
+        combined_output = {}
+        all_success = True
+        errors = []
+
+        for prim_name in primitives:
+            prim = get_primitive(prim_name)
+            if prim is None:
+                all_success = False
+                errors.append(f"Unknown primitive: {prim_name}")
+                continue
+            try:
+                output = prim.execute(context, self.root)
+                combined_output.update(output)
+            except Exception as e:
+                all_success = False
+                errors.append(f"Primitive '{prim_name}' failed: {e}")
+
+        return PhaseResult(
+            phase=phase_def.get("name", "composed"),
+            kind=PhaseKind.DETERMINISTIC,
+            success=all_success,
+            output=combined_output,
+            error="; ".join(errors) if errors else None,
+        )
+
+    def _record_observability(self, result: WorkflowResult) -> None:
+        """Record workflow run metrics for observability."""
+        if not self._observability_enabled:
+            return
+        try:
+            record = {
+                "trace_id": result.trace_id,
+                "timestamp": result.timestamp,
+                "workflow": result.workflow,
+                "success": result.success,
+                "total_tokens": result.total_tokens,
+                "total_duration_ms": round(result.total_duration_ms, 2),
+                "ai_calls": result.ai_calls,
+                "deterministic_steps": result.deterministic_steps,
+                "token_breakdown": {
+                    "deterministic": 0,
+                    "local_model": sum(p.tokens_used for p in result.phases if p.kind == PhaseKind.LOCAL_MODEL),
+                    "frontier": sum(p.tokens_used for p in result.phases if p.kind == PhaseKind.FRONTIER),
+                },
+            }
+            # Store in memory engine for later querying
+            try:
+                from .intelligence.storage import get_db as get_mem_db
+                db = get_mem_db(self.root)
+                # Use decisions store as lightweight telemetry sink
+                db.execute(
+                    "INSERT OR REPLACE INTO knowledge_decisions (id, choice, reason, alternatives, related_files, created_at) "
+                    "VALUES (?, ?, ?, ?, ?, ?)",
+                    (f"wf_trace_{result.trace_id}", result.workflow,
+                     json.dumps(record), "[]", "[]", result.timestamp),
+                )
+            except Exception:
+                pass  # Observability is best-effort, never blocks
+        except Exception:
+            pass  # Silently fail if observability recording fails
 
     # ── Deterministic Handlers ──────────────────────────────────
 
@@ -370,6 +459,8 @@ def handle_workflow_run(params: Dict[str, Any]) -> Dict[str, Any]:
         return {"error": str(e), "available_workflows": engine.list_workflows()}
 
     return {
+        "trace_id": result.trace_id,
+        "timestamp": result.timestamp,
         "workflow": result.workflow,
         "success": result.success,
         "phases": len(result.phases),

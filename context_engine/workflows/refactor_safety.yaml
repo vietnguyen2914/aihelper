@@ -1,34 +1,14 @@
 name: "Refactor Safety"
-description: "Pre-refactor safety analysis: trace impact, classify risk, propose strategy"
-version: "1.0"
+description: "Pre-refactor safety analysis using primitives composition"
+version: "1.1"
 
 phases:
-  - name: analyze_target
+  - name: analyze
     kind: deterministic
-    handler: analyze_target
-    description: "Trace symbol dependencies and callers"
+    uses: [graph.analyze_target, graph.trace_callers, graph.trace_callees, risk.classify, memory.recall]
+    description: "Full pre-refactor analysis in one composed phase"
 
-  - name: trace_callers
-    kind: deterministic
-    handler: trace_callers
-    description: "Find all callers of target"
-
-  - name: trace_callees
-    kind: deterministic
-    handler: trace_callees
-    description: "Find all callees of target"
-
-  - name: classify_risk
-    kind: deterministic
-    handler: classify_risk
-    description: "Classify refactor risk level"
-
-  - name: retrieve_memory
-    kind: deterministic
-    handler: retrieve_memory
-    description: "Retrieve past bugs related to target"
-
-  - name: refactor_strategy
+  - name: strategy
     kind: frontier
     prompt_template: |
       Plan a safe refactoring strategy.
