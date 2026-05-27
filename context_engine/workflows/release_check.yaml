@@ -1,0 +1,44 @@
+name: "Release Check"
+description: "Pre-release validation: tests, lint, architecture, dependencies, git diff"
+version: "1.0"
+
+phases:
+  - name: run_tests
+    kind: deterministic
+    handler: run_tests
+    description: "Run full test suite"
+
+  - name: run_lint
+    kind: deterministic
+    handler: run_lint
+    description: "Run linter"
+    continue_on_failure: true
+
+  - name: check_architecture_rules
+    kind: deterministic
+    handler: check_architecture_rules
+    description: "Check for circular deps, dead code"
+
+  - name: inspect_dependencies
+    kind: deterministic
+    handler: inspect_dependencies
+    description: "Analyze dependency graph changes"
+
+  - name: analyze_git_diff
+    kind: deterministic
+    handler: analyze_git_diff
+    description: "Review recent changes"
+
+  - name: generate_summary
+    kind: local_model
+    model: qwen3.5:4b-16k
+    prompt_template: |
+      Summarize the release readiness:
+      - Tests passed: {passed}
+      - Lint issues: {issues}
+      - Circular deps: {circular_deps}
+      - Dead code: {dead_code}
+      - Diff summary: {diff_stat}
+      - Dependencies: {dep_count} deps
+
+      Should we proceed with release? Give a brief recommendation.

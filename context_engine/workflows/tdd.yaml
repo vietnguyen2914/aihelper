@@ -1,0 +1,48 @@
+name: "TDD — Test-Driven Development"
+description: "Red-green-refactor loop for a target module"
+version: "1.0"
+
+phases:
+  - name: analyze_target
+    kind: deterministic
+    handler: analyze_target
+    description: "Trace dependencies and callers of the target"
+
+  - name: generate_test_stub
+    kind: deterministic
+    handler: generate_test_stub
+    description: "Generate minimal test file stub"
+
+  - name: run_test_expect_fail
+    kind: deterministic
+    handler: run_test_expect_fail
+    description: "Run tests — expect RED (failing test)"
+
+  - name: implement_patch
+    kind: local_model
+    model: qwen3.5:4b-16k
+    prompt_template: |
+      Given:
+      - Target: {target}
+      - Callers: {caller_list}
+      - Callees: {callee_list}
+      - Test stub ready: {test_stub_ready}
+
+      Implement the minimal code change to make the test pass.
+      Focus on correctness, not optimization.
+
+  - name: run_test_expect_pass
+    kind: deterministic
+    handler: run_tests
+    description: "Run tests — expect GREEN"
+
+  - name: run_regression_suite
+    kind: deterministic
+    handler: run_tests
+    description: "Run full regression suite"
+    continue_on_failure: true
+
+  - name: summarize_impact
+    kind: deterministic
+    handler: summarize_impact
+    description: "Calculate impact radius and risk level"

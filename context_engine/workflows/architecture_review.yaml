@@ -1,0 +1,39 @@
+name: "Architecture Review"
+description: "Deep architecture analysis: graph, callers, impact, memory, constraints"
+version: "1.0"
+
+phases:
+  - name: check_architecture_rules
+    kind: deterministic
+    handler: check_architecture_rules
+    description: "Find circular deps and dead code"
+
+  - name: retrieve_memory
+    kind: deterministic
+    handler: retrieve_memory
+    description: "Retrieve past architectural decisions"
+
+  - name: analyze_git_diff
+    kind: deterministic
+    handler: analyze_git_diff
+    description: "Review recent structural changes"
+
+  - name: build_context_package
+    kind: deterministic
+    handler: build_context_package
+    description: "Build compressed cognition package"
+
+  - name: architecture_report
+    kind: frontier
+    prompt_template: |
+      You are reviewing the architecture of a codebase.
+
+      Architecture state: {circular_deps} circular deps, {dead_code} dead symbols
+      Historical decisions: {memories}
+      Recent changes: {diff_stat}
+
+      Provide:
+      1. Overall architecture health assessment
+      2. Top 3 risks
+      3. Recommended improvements
+      Be specific and actionable.

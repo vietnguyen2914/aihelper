@@ -9,6 +9,7 @@ This folder explains the project from a business-function point of view, then ma
 - [Function Mindmap](./function-mindmap.md)
 - [Function / Use Case vs System Matrix](./use-case-system-matrix.md)
 - [Entity / Route Matrix](./entity-crud-matrix.md)
+- [Runtime Vision](./runtime-vision.md) — Strategic architecture: three-tier cognition, deterministic-first execution, frontier models as reasoning engines
 
 ## How To Read It
 

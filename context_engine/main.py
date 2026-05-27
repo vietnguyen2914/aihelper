@@ -910,6 +910,40 @@ def main() -> int:
     health_parser = subparsers.add_parser("health", help="Check subsystem health (watchman, ramdisk, ollama).")
     health_parser.add_argument("--json", "-json", action="store_true", default=False, help=argparse.SUPPRESS)
 
+    # ── Workflow Runtime Engine (v0.0.9) ─────────────────────────
+    workflow_parser = subparsers.add_parser("workflow", help="Execute deterministic engineering workflows.")
+    workflow_subparsers = workflow_parser.add_subparsers(dest="workflow_command")
+    workflow_run = workflow_subparsers.add_parser("run", help="Run a named workflow.")
+    workflow_run.add_argument("name", help="Workflow name (tdd, diagnose, release-check, architecture-review, refactor-safety)")
+    workflow_run.add_argument("--target", help="Target file or symbol")
+    workflow_run.add_argument("--error", help="Error description for diagnose workflow")
+    workflow_run.add_argument("--params", default="{}", help="JSON params for the workflow")
+    workflow_run.add_argument("--project-root", default=None)
+    workflow_run.add_argument("--json", "-json", action="store_true", default=False, help=argparse.SUPPRESS)
+    workflow_list = workflow_subparsers.add_parser("list", help="List available workflows.")
+    workflow_list.add_argument("--json", "-json", action="store_true", default=False, help=argparse.SUPPRESS)
+
+    # ── Verification Runtime (v0.0.9) ───────────────────────────
+    verify_parser = subparsers.add_parser("verify", help="Run deterministic verification checks.")
+    verify_parser.add_argument("check", nargs="?", help="Check name: architecture, auth-safety, regression-risk, dependency-health")
+    verify_parser.add_argument("--target", help="Target symbol for regression-risk check")
+    verify_parser.add_argument("--project-root", default=None)
+    verify_parser.add_argument("--json", "-json", action="store_true", default=False, help=argparse.SUPPRESS)
+
+    # ── Context Compressor (v0.0.9) ─────────────────────────────
+    compress_parser = subparsers.add_parser("compress", help="Build distilled cognition package for frontier models.")
+    compress_parser.add_argument("question", nargs="?", help="The question for the frontier model")
+    compress_parser.add_argument("--target", help="Target symbol or module")
+    compress_parser.add_argument("--project-root", default=None)
+    compress_parser.add_argument("--json", "-json", action="store_true", default=False, help=argparse.SUPPRESS)
+
+    # ── Tier Router (v0.0.9) ────────────────────────────────────
+    tier_parser = subparsers.add_parser("tier-route", aliases=["tier_route"],
+        help="Classify a task into the correct execution tier.")
+    tier_parser.add_argument("task", nargs="?", help="Task to classify")
+    tier_parser.add_argument("--project-root", default=None)
+    tier_parser.add_argument("--json", "-json", action="store_true", default=False, help=argparse.SUPPRESS)
+
     # ── Diagnostics ────────────────────────────────────────────────────
     diag_parser = subparsers.add_parser("diagnostics", help="Collect compiler/linter diagnostics for files.")
     diag_parser.add_argument("files", nargs="*", default=[], help="Files to check")
@@ -1067,6 +1101,11 @@ def main() -> int:
         "patch_apply",
         "validate-files",
         "validate_files",
+        "workflow",
+        "verify",
+        "compress",
+        "tier-route",
+        "tier_route",
     }
     if not argv or argv[0] in {"-h", "--help", "help"}:
         parser.print_help()
@@ -1721,6 +1760,84 @@ def main() -> int:
             print(json.dumps(result, indent=2, ensure_ascii=False))
         else:
             print(render_markdown("Subsystem Health", result))
+        return 0
+
+    if argv[0] == "workflow":
+        args = workflow_parser.parse_args(argv[1:])
+        if args.workflow_command == "list":
+            target_root = Path(args.project_root or Path.cwd()).resolve()
+            result = _try_daemon_proxy("workflow_run", {"name": "list", "project_root": str(target_root)})
+            if result is None:
+                from .workflow_engine import WorkflowEngine
+                result = {"workflows": WorkflowEngine(target_root).list_workflows()}
+        elif args.workflow_command == "run":
+            target_root = Path(args.project_root or Path.cwd()).resolve()
+            params = json.loads(args.params) if args.params else {}
+            if args.target:
+                params["target"] = args.target
+            if args.error:
+                params["error"] = args.error
+            result = _try_daemon_proxy("workflow_run", {"name": args.name, "params": params, "project_root": str(target_root)})
+            if result is None:
+                from .workflow_engine import WorkflowEngine
+                wf_result = WorkflowEngine(target_root).run(args.name, params)
+                result = {
+                    "workflow": wf_result.workflow,
+                    "success": wf_result.success,
+                    "phases": len(wf_result.phases),
+                    "total_tokens": wf_result.total_tokens,
+                    "total_duration_ms": wf_result.total_duration_ms,
+                    "ai_calls": wf_result.ai_calls,
+                    "deterministic_steps": wf_result.deterministic_steps,
+                    "summary": wf_result.summary,
+                }
+        else:
+            workflow_parser.error("missing workflow command: run or list")
+        if bool(args.json):
+            print(json.dumps(result, indent=2, ensure_ascii=False))
+        else:
+            print(render_markdown("Workflow", result))
+        return 0
+
+    if argv[0] == "verify":
+        args = verify_parser.parse_args(argv[1:])
+        target_root = Path(args.project_root or Path.cwd()).resolve()
+        if not args.check:
+            verify_parser.error("a check name is required (architecture, auth-safety, regression-risk, dependency-health)")
+        result = _try_daemon_proxy("verify", {"check": args.check, "target": args.target or "", "project_root": str(target_root)})
+        if result is None:
+            from .verify import handle_verify
+            result = handle_verify({"check": args.check, "target": args.target or "", "project_root": str(target_root)})
+        if bool(args.json):
+            print(json.dumps(result, indent=2, ensure_ascii=False))
+        else:
+            print(render_markdown("Verify", result))
+        return 0
+
+    if argv[0] == "compress":
+        args = compress_parser.parse_args(argv[1:])
+        target_root = Path(args.project_root or Path.cwd()).resolve()
+        result = _try_daemon_proxy("compress_context", {"question": args.question or "", "target": args.target or "", "project_root": str(target_root)})
+        if result is None:
+            from .compressor import handle_compress_context
+            result = handle_compress_context({"question": args.question or "", "target": args.target or "", "project_root": str(target_root)})
+        if bool(args.json):
+            print(json.dumps(result, indent=2, ensure_ascii=False))
+        else:
+            print(render_markdown("Compressed Context", result))
+        return 0
+
+    if argv[0] in ("tier-route", "tier_route"):
+        args = tier_parser.parse_args(argv[1:])
+        target_root = Path(args.project_root or Path.cwd()).resolve()
+        result = _try_daemon_proxy("tier_route", {"task": args.task or "", "project_root": str(target_root)})
+        if result is None:
+            from .tier_router import handle_tier_route
+            result = handle_tier_route({"task": args.task or "", "project_root": str(target_root)})
+        if bool(args.json):
+            print(json.dumps(result, indent=2, ensure_ascii=False))
+        else:
+            print(render_markdown("Tier Route", result))
         return 0
 
     if argv[0] == "diagnostics":
