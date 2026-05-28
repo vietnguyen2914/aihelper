@@ -5,7 +5,9 @@
     "on": "front",
     "to": "learn",
     "in": "post",
-    "the": "post"
+    "the": "post",
+    "ui": "post",
+    "with": "post"
   },
   "count": {
     "for": 3,
@@ -15,10 +17,20 @@
     "in": 3,
     "app": 2,
     "the": 3,
-    "with": 2,
+    "with": 3,
     "hinh": 2,
     "of": 2,
-    "ui": 2,
-    "service": 2
+    "ui": 3,
+    "service": 2,
+    "_verify_architecture_health": 2,
+    "_verify_regression_risk": 2,
+    "constant_folding_pass": 2,
+    "api": 2,
+    "or": 2,
+    "spawn_agent": 2,
+    "workflow_engine": 2,
+    "run_subagent": 2,
+    "from": 2,
+    "use": 2
   }
 }

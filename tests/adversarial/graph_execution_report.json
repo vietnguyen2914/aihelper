@@ -1,0 +1,53 @@
+{
+  "suite": "Graph Execution Validation",
+  "timestamp": "2026-05-27T23:40:15Z",
+  "results": [
+    "  \u2705 handle_callers: count=0, structured response OK",
+    "  \u2705 handle_callees: count=0, structured response OK",
+    "  \u2705 handle_trace: found=False, no error",
+    "  \u2705 handle_impact: files_affected=1",
+    "  \u2705 handle_explore: symbols=2",
+    "  \u2705 graph_status: 1555 syms, 899 edges, 167 files",
+    "  \u2705 symbol_resolved:build_registry: id=context_engine/primitives.py::build_registry",
+    "  \u2705 symbol_resolved:WorkflowEngine: id=context_engine/workflow_engine.py::WorkflowEngine",
+    "  \u2705 symbol_resolved:EventBus: id=context_engine/event_bus.py::EventBus",
+    "  \u2705 symbol_resolved:optimize_dag: id=context_engine/optimizer.py::optimize_dag",
+    "  \u2705 symbol_resolved:classify_change: id=context_engine/invalidation.py::classify_change",
+    "  \u2705 symbol_metadata:build_registry: kind=function, file=context_engine/primitives.py",
+    "  \u2705 symbol_metadata:WorkflowEngine: kind=class, file=context_engine/workflow_engine.py",
+    "  \u2705 symbol_metadata:EventBus: kind=class, file=context_engine/event_bus.py",
+    "  \u2705 symbol_metadata:optimize_dag: kind=function, file=context_engine/optimizer.py",
+    "  \u2705 symbol_metadata:classify_change: kind=function, file=context_engine/invalidation.py",
+    "  \u2705 callers:classify_change: resolved=context_engine/invalidation.py::classify_change, count=0",
+    "  \u2705 callees:build_registry: resolved=context_engine/primitives.py::build_registry, count=0",
+    "  \u2705 source:caller_relationship: _apply_semantic_invalidation calls classify_change (verified at source)",
+    "  \u2705 impact:handle_workflow_run: 1 symbols across 1 files, risk=low",
+    "  \u2705 impact:risk_level: risk=low",
+    "  \u2705 impact:depth_scaling: depth=1 \u2192 1 syms, depth=3 \u2192 1 syms",
+    "  \u2705 graph_vs_grep: graph=0.16ms, grep=37.94ms, speedup=232.0x {'graph_ms': 0.16, 'grep_ms': 37.94, 'speedup': 232.0}",
+    "  \u2705 trace:symbols_resolved: enforce_tier=context_engine/tier_router.py::enforce_tier, get_escalation_stats=context_engine/tier_router.py::get_escalation_stats",
+    "  \u2705 trace:graceful_no_call_edges: found=False (no calls edges in graph)",
+    "  \u2705 trace:co_location: both functions in context_engine/tier_router.py",
+    "  \u2705 stats:symbol_count: 1555",
+    "  \u2705 stats:edge_count: 899",
+    "  \u2705 stats:nodes_by_kind: 5 categories: ['class', 'const', 'file', 'function', 'method']",
+    "  \u2705 stats:files_by_language: languages=['java', 'javascript', 'json', 'markdown', 'python', 'yaml']",
+    "  \u2705 fts5:cache_search: found 20 symbols: ['from .cache import build_cache, cache_paths, cache_status', 'from cache import build_cache, cache_paths, cache_status', 'from .cache import cache_paths, cache_status, load_cached_context', 'from cache import cache_paths, cache_status, load_cached_context', 'from .cache import cache_status, build_cache', 'from cache import cache_status, build_cache', 'from .cache import cache_status, load_cached_context', 'from cache import cache_status, load_cached_context']...",
+    "  \u2705 fts5:case_insensitive: overlap=2 results",
+    "  \u2705 fts5:partial_match: found 10 symbols matching 'get_'",
+    "  \u2705 fallback:search_by_name: found 'build_registry' (function) in context_engine/primitives.py",
+    "  \u2705 fallback:prefix_search: found 10 results: ['build_cache', 'build_db_schema_summary', 'build_dependency_graph', 'build_discovery_prompt', 'build_execution_dag', 'build_execution_plan']...",
+    "  \u2705 fallback:_find_symbol_id: id=context_engine/event_bus.py::EventBus",
+    "  \u2705 fallback:consistent_structure: both paths return {'file_path', 'name', 'kind'}"
+  ],
+  "summary": {
+    "passed": 37,
+    "failed": 0,
+    "total": 37
+  },
+  "verdict": "OPERATIONAL",
+  "graph_state": {
+    "symbol_count": "1555",
+    "edge_count": "899"
+  }
+}

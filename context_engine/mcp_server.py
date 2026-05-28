@@ -433,6 +433,38 @@ def _compress_context_schema() -> Dict[str, Any]:
     }
 
 
+def _spawn_subagent_tool_schema() -> Dict[str, Any]:
+    return {
+        "name": "aihelper_spawn_subagent",
+        "description": "Spawn a sub-agent through the aihelper cognition runtime with tier enforcement, graph boundaries, and event emission.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "task": {"type": "string", "description": "Task description"},
+                "target": {"type": "string", "description": "Target symbol/module"},
+                "project_root": {"type": "string", "description": "Target repository root"},
+                "max_tokens": {"type": "integer", "default": 2000},
+            },
+            "required": ["task", "target"],
+        },
+    }
+
+
+def _auto_task_schema() -> Dict[str, Any]:
+    return {
+        "name": "aihelper_auto_task",
+        "description": "Execute the unified autonomous task pipeline: detects intent, auto-selects workflow, compiles cognition package, routes tier, partitions work, and executes through the runtime. Single entry for 'implement X'.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "task": {"type": "string", "description": "The task description (e.g. 'add logo upload to Group')"},
+                "project_root": {"type": "string", "description": "Target repository root. Defaults to current working directory."},
+            },
+            "required": ["task"],
+        },
+    }
+
+
 def _tool_schemas() -> list[Dict[str, Any]]:
     return [
         _context_tool_schema(),
@@ -457,8 +489,10 @@ def _tool_schemas() -> list[Dict[str, Any]]:
         _knowledge_dispatch_schema(),
         _workflow_run_schema(),
         _tier_route_schema(),
+        _spawn_subagent_tool_schema(),
         _verify_schema(),
         _compress_context_schema(),
+        _auto_task_schema(),
     ]
 
 
@@ -690,6 +724,36 @@ def _call_tool(name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
             return _json_content(daemon_data)
         from .compressor import handle_compress_context
         return _json_content(handle_compress_context(arguments))
+    if name == "aihelper_spawn_subagent":
+        daemon_data = _daemon_result("spawn_subagent", {
+            "task": str(arguments.get("task", "")),
+            "target": str(arguments.get("target", "")),
+            "max_tokens": int(arguments.get("max_tokens") or 2000),
+            "project_root": str(_target_root(arguments)),
+        })
+        if daemon_data:
+            return _json_content(daemon_data)
+        from .workflow_engine import WorkflowEngine
+        engine = WorkflowEngine(_target_root(arguments))
+        result = engine.run_subagent(
+            task=str(arguments.get("task", "")),
+            target=str(arguments.get("target", "")),
+            max_tokens=int(arguments.get("max_tokens") or 2000),
+        )
+        return _json_content(result)
+    if name == "aihelper_auto_task":
+        daemon_data = _daemon_result("auto_task", {
+            "task": str(arguments.get("task", "")),
+            "project_root": str(_target_root(arguments)),
+        })
+        if daemon_data:
+            return _json_content(daemon_data)
+        from .auto_task import auto_task
+        result = auto_task(
+            task=str(arguments.get("task", "")),
+            project_root=_target_root(arguments),
+        )
+        return _json_content(result)
     raise ValueError(f"unknown tool: {name}")
 
 

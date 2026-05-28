@@ -35,6 +35,18 @@ def get_compression_confidence(project_root: Optional[Path] = None) -> float:
     return _compression_confidence.get(key, 1.0)
 
 
+def is_compression_stale(project_root: Optional[Path] = None,
+                          threshold: float = 0.60) -> bool:
+    """Check if compression is stale — confidence dropped below threshold.
+
+    Allows staleness-aware queries: instead of only checking at recompression
+    trigger time, any component can check staleness on every query and react
+    (e.g., warn, trigger partial recompression, or degrade gracefully).
+    """
+    confidence = get_compression_confidence(project_root)
+    return confidence < threshold
+
+
 def set_compression_confidence(confidence: float,
                                 project_root: Optional[Path] = None) -> None:
     """Set compression confidence to a specific value (e.g., after recompression)."""
@@ -61,7 +73,7 @@ def apply_compression_decay(change_type: str,
 
     needs_recompress = should_recompress(new_confidence)
 
-    return {
+    result = {
         "previous_confidence": current,
         "new_confidence": new_confidence,
         "decay_applied": round(current - new_confidence, 4),
@@ -69,6 +81,24 @@ def apply_compression_decay(change_type: str,
         "needs_recompression": needs_recompress,
         "recompression_threshold": 0.60,
     }
+
+    # ── Runtime event: compression decayed ──
+    try:
+        from .event_bus import get_event_bus, COMPRESSION_DECAYED
+        _cbus = get_event_bus()
+        _cbus.emit(COMPRESSION_DECAYED, {
+            "change_type": change_type,
+            "file_path": file_path[:300],
+            "previous_confidence": current,
+            "new_confidence": new_confidence,
+            "decay_applied": round(current - new_confidence, 4),
+            "needs_recompression": needs_recompress,
+            "change_count": change_count,
+        })
+    except Exception:
+        pass
+
+    return result
 
 
 def reset_compression_confidence(project_root: Optional[Path] = None) -> float:
@@ -92,6 +122,17 @@ def compress_context(context: Dict[str, Any], project_root: Path) -> Dict[str, A
         import hashlib
         ck = hashlib.md5(target.encode()).hexdigest()[:12]
         if ck in _compression_cache:
+            # ── Runtime event: compression reused ──
+            try:
+                from .event_bus import get_event_bus, COMPRESSION_REUSED
+                _cbus = get_event_bus()
+                _cbus.emit(COMPRESSION_REUSED, {
+                    "cache_key": ck,
+                    "target": target[:200],
+                    "package_size": len(str(_compression_cache[ck])),
+                })
+            except Exception:
+                pass
             return _compression_cache[ck]
 
     package = {

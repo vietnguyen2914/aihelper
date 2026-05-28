@@ -23,6 +23,16 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Set
 
 
+# ── Contract Version ──────────────────────────────────────────────
+
+CONTRACT_VERSION = "1.0.0"
+"""Current version of the PrimitiveContract IR schema.
+
+All primitives registered with build_registry() carry this version.
+Any change to PrimitiveContract fields MUST bump this version.
+"""
+
+
 # ── Primitive Contract ───────────────────────────────────────────
 
 @dataclass
@@ -55,6 +65,7 @@ class PrimitiveContract:
     determinism: str = "deterministic"   # "deterministic" | "heuristic" | "ai_bound"
     invalidation_scope: str = "symbol"   # "symbol" | "file" | "module" | "global"
     parallel_safe: bool = True           # Can run concurrently without race conditions
+    contract_version: str = "1.0.0"      # IR schema version (for migration/backward compat)
 
     def fingerprint_inputs(self, context: Dict[str, Any]) -> str:
         """Create a cache key from the inputs this primitive depends on."""
@@ -140,6 +151,7 @@ class Primitive:
             "determinism": self.contract.determinism,
             "invalidation_scope": self.contract.invalidation_scope,
             "parallel_safe": self.contract.parallel_safe,
+            "contract_version": self.contract.contract_version,
         }
 
 
@@ -297,6 +309,26 @@ def _telemetry_benchmark(ctx: Dict, root: Path) -> Dict:
         return {"benchmark": None, "markdown": "", "error": str(e)}
 
 
+def _telemetry_spawn_subagent(ctx: Dict, root: Path) -> Dict:
+    """Run runtime-owned subagent execution through WorkflowEngine (v0.1)."""
+    try:
+        from .workflow_engine import WorkflowEngine
+        engine = WorkflowEngine(root)
+        result = engine.run_subagent(
+            task=str(ctx.get("task", "")),
+            target=str(ctx.get("target", "")),
+            max_tokens=int(ctx.get("max_tokens", 2000)),
+        )
+        return {
+            "cognition_package": result.get("cognition_package", {}),
+            "prompt": result.get("prompt", ""),
+            "tier": result.get("tier", "local_model"),
+            "runtime_owned": result.get("runtime_owned", False),
+        }
+    except Exception as e:
+        return {"cognition_package": None, "prompt": "", "tier": "", "runtime_owned": False, "error": str(e)}
+
+
 def _telemetry_subagent_wiring(ctx: Dict, root: Path) -> Dict:
     """Compile cognition package for sub-agent execution (v0.1)."""
     try:
@@ -314,6 +346,43 @@ def _telemetry_subagent_wiring(ctx: Dict, root: Path) -> Dict:
         return {"cognition_package": None, "generated_prompt": "", "error": str(e)}
 
 
+def _telemetry_runtime_trace(ctx: Dict, root: Path) -> Dict:
+    """Return formatted runtime trace from the event bus."""
+    try:
+        from .runtime_trace import get_recent_trace, format_trace, get_execution_summary
+        limit = int(ctx.get("limit", 50))
+        style = ctx.get("style", "compact")
+        events = get_recent_trace(limit=limit)
+        trace_str = format_trace(events, style=style)
+        summary = get_execution_summary()
+        return {
+            "trace": trace_str,
+            "event_count": len(events),
+            "summary": summary,
+            "style": style,
+        }
+    except Exception as e:
+        return {"trace": "", "event_count": 0, "error": str(e)}
+
+
+def _telemetry_auto_task(ctx: Dict, root: Path) -> Dict:
+    """Execute the unified autonomous task pipeline end-to-end."""
+    try:
+        from .auto_task import auto_task
+        task = str(ctx.get("task", ""))
+        result = auto_task(task, root)
+        return {
+            "task": result.get("task", ""),
+            "intent": result.get("intent", "unknown"),
+            "workflow": result.get("workflow"),
+            "enforced_tier": result.get("enforced_tier", "local_model"),
+            "partitions": result.get("partitions", 1),
+            "runtime_owned": result.get("runtime_owned", False),
+        }
+    except Exception as e:
+        return {"task": str(ctx.get("task", "")), "runtime_owned": False, "error": str(e)}
+
+
 def _summary_generate(ctx: Dict, root: Path) -> Dict:
     parts = []
     if ctx.get("passed") is not None:
@@ -327,6 +396,101 @@ def _summary_generate(ctx: Dict, root: Path) -> Dict:
     if ctx.get("risk_level"):
         parts.append(f"Risk: {ctx['risk_level']}")
     return {"summary_text": " | ".join(parts) if parts else "No issues found"}
+
+
+# ── Contract Validation ────────────────────────────────────────────
+
+
+def validate_contract(contract: PrimitiveContract) -> List[str]:
+    """Validate that a contract meets the current IR spec.
+
+    Returns a list of validation error messages. Empty list = valid.
+    """
+    errors: List[str] = []
+
+    valid_purities = {"pure", "mutative", "unknown"}
+    valid_determinisms = {"deterministic", "heuristic", "ai_bound"}
+    valid_scopes = {"symbol", "file", "module", "global"}
+
+    if contract.purity not in valid_purities:
+        errors.append(
+            f"purity={contract.purity!r} not in {valid_purities}"
+        )
+    if contract.determinism not in valid_determinisms:
+        errors.append(
+            f"determinism={contract.determinism!r} not in {valid_determinisms}"
+        )
+    if contract.invalidation_scope not in valid_scopes:
+        errors.append(
+            f"invalidation_scope={contract.invalidation_scope!r} not in {valid_scopes}"
+        )
+    if contract.cacheable:
+        if contract.purity != "pure":
+            errors.append(
+                f"cacheable=True requires purity='pure', got {contract.purity!r}"
+            )
+        if contract.side_effects:
+            errors.append(
+                "cacheable=True requires side_effects=False"
+            )
+    if contract.cost_estimate_ms < 0:
+        errors.append(
+            f"cost_estimate_ms={contract.cost_estimate_ms} must be >= 0"
+        )
+    if contract.token_estimate < 0:
+        errors.append(
+            f"token_estimate={contract.token_estimate} must be >= 0"
+        )
+    if contract.contract_version != CONTRACT_VERSION:
+        errors.append(
+            f"contract_version={contract.contract_version!r} "
+            f"does not match CONTRACT_VERSION={CONTRACT_VERSION!r}"
+        )
+
+    return errors
+
+
+def validate_registry(registry: Dict[str, Primitive]) -> Dict[str, List[str]]:
+    """Validate ALL primitives in the registry.
+
+    Returns {primitive_name: [error_messages]} for primitives with errors.
+    Empty dict means all primitives are valid.
+    """
+    all_errors: Dict[str, List[str]] = {}
+    for name, prim in registry.items():
+        errs = validate_contract(prim.contract)
+        if errs:
+            all_errors[name] = errs
+    return all_errors
+
+
+def contract_diff(old: PrimitiveContract, new: PrimitiveContract) -> Dict:
+    """Compare two contract versions for migration analysis.
+
+    Returns {"changed_fields": [...], "breaking": bool}.
+    "breaking" is True if input_keys, output_keys, purity, or determinism changed.
+    """
+    changed_fields: List[str] = []
+    breaking = False
+
+    fields_to_check = [
+        "input_keys", "output_keys", "cacheable", "side_effects",
+        "depends_on", "cost_estimate_ms", "token_estimate",
+        "invalidates", "purity", "determinism", "invalidation_scope",
+        "parallel_safe", "contract_version",
+    ]
+
+    for field in fields_to_check:
+        old_val = getattr(old, field)
+        new_val = getattr(new, field)
+        if old_val != new_val:
+            changed_fields.append(field)
+
+    breaking_fields = {"input_keys", "output_keys", "purity", "determinism"}
+    if any(f in changed_fields for f in breaking_fields):
+        breaking = True
+
+    return {"changed_fields": changed_fields, "breaking": breaking}
 
 
 # ── Registry ─────────────────────────────────────────────────────
@@ -349,6 +513,7 @@ def _c(*, ik=None, ok=None, cacheable=False, side=False, deps=None, cost=1.0, to
         token_estimate=tokens, invalidates=inv or [],
         purity=resolved_purity, determinism=resolved_det,
         invalidation_scope=resolved_scope, parallel_safe=resolved_par_safe,
+        contract_version=CONTRACT_VERSION,
     )
 
 
@@ -475,7 +640,40 @@ def build_registry() -> Dict[str, Primitive]:
             contract=_c(ik=["task", "target"], ok=["cognition_package", "generated_prompt"],
                         cacheable=True, cost=10.0, tokens=0, purity="pure"),
         ),
+        "telemetry.runtime_trace": Primitive(
+            "telemetry.runtime_trace", "Return formatted runtime trace from the event bus",
+            _telemetry_runtime_trace, "telemetry",
+            contract=_c(ik=["limit", "style"], ok=["trace", "event_count", "summary", "style"],
+                        cacheable=False, cost=5.0, tokens=0, purity="pure"),
+        ),
+        "telemetry.spawn_subagent": Primitive(
+            "telemetry.spawn_subagent", "Run runtime-owned subagent execution through WorkflowEngine with tier enforcement",
+            _telemetry_spawn_subagent, "telemetry",
+            contract=_c(ik=["task", "target"], ok=["cognition_package", "prompt", "tier", "runtime_owned"],
+                        cacheable=False, cost=15.0, tokens=0, purity="pure"),
+        ),
+        "telemetry.auto_task": Primitive(
+            "telemetry.auto_task", "Execute the unified autonomous task pipeline: detect intent, select workflow, compile cognition, route tier, partition, execute",
+            _telemetry_auto_task, "telemetry",
+            contract=_c(ik=["task"], ok=["task", "intent", "workflow", "enforced_tier", "partitions", "runtime_owned"],
+                        cacheable=False, cost=20.0, tokens=0, purity="pure"),
+        ),
     }
+
+    # ── Validate all contracts after building ──
+    validation_errors = validate_registry(registry)
+    if validation_errors:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(
+            "Registry validation found %d primitives with contract errors:",
+            len(validation_errors),
+        )
+        for name, errs in validation_errors.items():
+            for err in errs:
+                logger.warning("  %s: %s", name, err)
+
+    return registry
 
 
 # ── Module-level cached registry ─────────────────────────────────

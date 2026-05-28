@@ -375,6 +375,17 @@ def handle_graph_explore(params: Dict[str, Any]) -> Dict[str, Any]:
     return handle_explore(args, _resolve_project(params))
 
 
+def handle_spawn_subagent(params: Dict[str, Any]) -> Dict[str, Any]:
+    """Execute a subagent through the runtime-owned cognition pipeline."""
+    from .workflow_engine import WorkflowEngine
+    engine = WorkflowEngine(Path(params.get("project_root", ".")))
+    return engine.run_subagent(
+        task=str(params.get("task", "")),
+        target=str(params.get("target", "")),
+        max_tokens=int(params.get("max_tokens") or 2000),
+    )
+
+
 def handle_graph_status(params: Dict[str, Any]) -> Dict[str, Any]:
     from .graph_db import get_db
     db = get_db(_resolve_project(params))
@@ -385,6 +396,18 @@ def handle_graph_status(params: Dict[str, Any]) -> Dict[str, Any]:
 
 # External handlers loaded lazily
 _external_handlers: Dict[str, Callable] = {}
+
+def _runtime_trace_handlers() -> Dict[str, Callable]:
+    """Load runtime trace handlers with optional imports."""
+    try:
+        from .runtime_trace import handle_runtime_trace as _rtt, handle_runtime_inspect as _rti
+        return {
+            "runtime_trace": _rtt,
+            "runtime_inspect": _rti,
+        }
+    except Exception:
+        return {}
+
 
 def _load_external_handlers() -> None:
     """Lazy-load handlers from external modules to avoid circular imports."""
@@ -416,6 +439,7 @@ def _load_external_handlers() -> None:
         from .compressor_fidelity import handle_compression_fidelity as _hcf
         from .invalidation import handle_invalidation_log as _hil, handle_invalidation_classify as _hicl
         from .mermaid_export import handle_mermaid_export as _hme
+        from .event_bus import handle_runtime_trace as _hrt, handle_runtime_summary as _hrs
         try:
             from .benchmark import handle_benchmark as _hb, handle_benchmark_export as _hbe
         except ImportError:
@@ -424,7 +448,16 @@ def _load_external_handlers() -> None:
             from .subagent_wiring import handle_subagent_wiring as _hsaw, handle_cognition_package as _hcp
         except ImportError:
             _hsaw = _hcp = None
+        try:
+            from .partition_optimizer import handle_partition_analyze as _hpa, handle_partition_optimize as _hpo
+        except ImportError:
+            _hpa = _hpo = None
+        try:
+            from .auto_task import handle_auto_task as _hat
+        except ImportError:
+            _hat = None
         _external_handlers = {
+            "auto_task": _hat,
             "invalidation_classify": _hicl,
             "editor_context": _hec,
             "lsp_definition": _hld,
@@ -476,6 +509,11 @@ def _load_external_handlers() -> None:
             "benchmark_export": _hbe,
             "subagent_wiring": _hsaw,
             "cognition_package": _hcp,
+            "partition_analyze": _hpa,
+            "partition_optimize": _hpo,
+            "runtime_trace": _hrt,
+            "runtime_summary": _hrs,
+            "auto_task": _hat,
         }
     except ImportError:
         from confidence import handle_confidence as _hc
@@ -502,6 +540,7 @@ def _load_external_handlers() -> None:
         from compressor_fidelity import handle_compression_fidelity as _hcf
         from invalidation import handle_invalidation_log as _hil, handle_invalidation_classify as _hicl
         from mermaid_export import handle_mermaid_export as _hme
+        from event_bus import handle_runtime_trace as _hrt, handle_runtime_summary as _hrs
         try:
             from benchmark import handle_benchmark as _hb, handle_benchmark_export as _hbe
         except ImportError:
@@ -510,6 +549,14 @@ def _load_external_handlers() -> None:
             from subagent_wiring import handle_subagent_wiring as _hsaw, handle_cognition_package as _hcp
         except ImportError:
             _hsaw = _hcp = None
+        try:
+            from partition_optimizer import handle_partition_analyze as _hpa, handle_partition_optimize as _hpo
+        except ImportError:
+            _hpa = _hpo = None
+        try:
+            from auto_task import handle_auto_task as _hat
+        except ImportError:
+            _hat = None
         _external_handlers = {
             "invalidation_classify": _hicl,
             "editor_context": _hec,
@@ -562,6 +609,11 @@ def _load_external_handlers() -> None:
             "benchmark_export": _hbe,
             "subagent_wiring": _hsaw,
             "cognition_package": _hcp,
+            "partition_analyze": _hpa,
+            "partition_optimize": _hpo,
+            "runtime_trace": _hrt,
+            "runtime_summary": _hrs,
+            "auto_task": _hat,
         }
 
 def _get_methods() -> Dict[str, Callable]:
@@ -588,7 +640,10 @@ def _get_methods() -> Dict[str, Callable]:
         "graph_impact": handle_graph_impact,
         "graph_explore": handle_graph_explore,
         "graph_status": handle_graph_status,
+        "spawn_subagent": handle_spawn_subagent,
         "compression_status": handle_compression_status,
+        # Runtime trace handlers (best-effort import from optional runtime_trace module)
+        **_runtime_trace_handlers(),
         **_external_handlers,
     }
 

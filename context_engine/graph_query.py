@@ -12,7 +12,10 @@ from typing import Any, Dict, List
 
 def _find_symbol_id(name: str, root: Path) -> str | None:
     """Resolve a symbol name to its graph ID."""
-    from .graph_db import get_db
+    try:
+        from .graph_db import get_db
+    except ImportError:
+        from graph_db import get_db
     db = get_db(root)
 
     # Try FTS5 search
@@ -69,7 +72,10 @@ def handle_callers(arguments: Dict[str, Any], root: Path) -> Dict[str, Any]:
     if not sym_id:
         return {"error": f"Symbol '{symbol}' not found in codebase"}
 
-    from .graph_db import get_db
+    try:
+        from .graph_db import get_db
+    except ImportError:
+        from graph_db import get_db
     db = get_db(root)
     callers = db.get_callers(sym_id, max_depth=depth)
     return _format_nodes(callers, f"Callers of {symbol}")
@@ -85,7 +91,10 @@ def handle_callees(arguments: Dict[str, Any], root: Path) -> Dict[str, Any]:
     if not sym_id:
         return {"error": f"Symbol '{symbol}' not found in codebase"}
 
-    from .graph_db import get_db
+    try:
+        from .graph_db import get_db
+    except ImportError:
+        from graph_db import get_db
     db = get_db(root)
     callees = db.get_callees(sym_id, max_depth=depth)
     return _format_nodes(callees, f"Callees of {symbol}")
@@ -104,7 +113,10 @@ def handle_trace(arguments: Dict[str, Any], root: Path) -> Dict[str, Any]:
     if not to_id:
         return {"error": f"Target symbol '{to_sym}' not found"}
 
-    from .graph_db import get_db
+    try:
+        from .graph_db import get_db
+    except ImportError:
+        from graph_db import get_db
     db = get_db(root)
     path = db.find_path(from_id, to_id, edge_kinds=["calls"], max_depth=7)
 
@@ -148,7 +160,10 @@ def handle_impact(arguments: Dict[str, Any], root: Path) -> Dict[str, Any]:
     if not sym_id:
         return {"error": f"Symbol '{symbol}' not found in codebase"}
 
-    from .graph_db import get_db
+    try:
+        from .graph_db import get_db
+    except ImportError:
+        from graph_db import get_db
     db = get_db(root)
     impacted = db.get_impact_radius(sym_id, max_depth=depth)
 
@@ -179,7 +194,10 @@ def handle_explore(arguments: Dict[str, Any], root: Path) -> Dict[str, Any]:
 
     max_files = int(arguments.get("max_files") or 8)
 
-    from .graph_db import get_db
+    try:
+        from .graph_db import get_db
+    except ImportError:
+        from graph_db import get_db
     db = get_db(root)
 
     # Split query into tokens, search each
