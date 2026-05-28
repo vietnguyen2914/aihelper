@@ -295,6 +295,50 @@ for project_dir in "${PROJECTS[@]}"; do
     run_integration_script "$AIHELPER_ROOT/scripts/claude-integration.py" --path "$project_dir" $DRY_FLAG
 done
 
+# ── 4e: Inject behavioral laws into project configs ───────────────
+echo ""
+echo "── Injecting behavioral laws ──────────────────────────────"
+echo ""
+
+BEHAVIORAL_LAWS_FILE="$AIHELPER_ROOT/ai/system/behavioral_laws.md"
+if [ -f "$BEHAVIORAL_LAWS_FILE" ]; then
+    BEHAVIORAL_LAWS_CONTENT=$(cat "$BEHAVIORAL_LAWS_FILE")
+    
+    # Inject into global ~/.github/copilot-instructions.md
+    if [ -f "$HOME/.github/copilot-instructions.md" ]; then
+        if ! grep -q "## Behavioral Laws" "$HOME/.github/copilot-instructions.md" 2>/dev/null; then
+            if $DRY_RUN; then
+                echo "  [DRY-RUN] Would append behavioral laws to: $HOME/.github/copilot-instructions.md"
+            else
+                printf "\n\n%s\n" "$BEHAVIORAL_LAWS_CONTENT" >> "$HOME/.github/copilot-instructions.md"
+                log "OK" "  Behavioral laws appended: $HOME/.github/copilot-instructions.md"
+            fi
+        else
+            log "SKIP" "  Behavioral laws already present: $HOME/.github/copilot-instructions.md"
+        fi
+    fi
+    
+    # Inject into per-project AGENTS.md and .github/copilot-instructions.md
+    for project_dir in "${PROJECTS[@]}"; do
+        for target_file in "$project_dir/AGENTS.md" "$project_dir/.github/copilot-instructions.md"; do
+            if [ -f "$target_file" ]; then
+                if ! grep -q "## Behavioral Laws" "$target_file" 2>/dev/null; then
+                    if $DRY_RUN; then
+                        echo "  [DRY-RUN] Would append behavioral laws to: $target_file"
+                    else
+                        printf "\n\n%s\n" "$BEHAVIORAL_LAWS_CONTENT" >> "$target_file"
+                        log "OK" "  Behavioral laws appended: $target_file"
+                    fi
+                else
+                    log "SKIP" "  Behavioral laws already present: $target_file"
+                fi
+            fi
+        done
+    done
+else
+    log "WARN" "  Behavioral laws file not found: $BEHAVIORAL_LAWS_FILE"
+fi
+
 # ── Auto-detect preferences & dispatch knowledge ──────────────────
 echo ""
 echo "── Auto-detecting preferences & dispatching knowledge ──────"
