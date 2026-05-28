@@ -36,6 +36,9 @@ DEFAULT_EXTENSIONS = {
     ".json",
     ".md",
 }
+_cache_rebuild_count = 0  # Incremented on each full rebuild, visible in cache_status()
+
+
 IGNORED_PARTS = {
     ".git",
     ".ai-cache",
@@ -124,6 +127,20 @@ def _semantic_digest(text: str, suffix: str) -> str:
             normalized_lines.append(re.sub(r"\s+", " ", stripped))
         normalized = "\n".join(normalized_lines)
     return hashlib.sha1(normalized.encode("utf-8", errors="ignore")).hexdigest()
+
+
+def _content_sha256(path: Path, max_bytes: int = 256000) -> str:
+    """Compute SHA256 hex digest of file content for staleness detection.
+
+    Unlike semantic_sha1 (which strips comments), this hashes the raw bytes
+    so ANY content change is detected, even comment-only or whitespace-only edits.
+    Returns empty string if file cannot be read.
+    """
+    try:
+        data = path.read_bytes()[:max_bytes]
+        return hashlib.sha256(data).hexdigest()[:16]
+    except Exception:
+        return ""
 
 
 def load_cached_file_index(project_root: Path) -> Dict[str, Any]:
@@ -389,6 +406,18 @@ def _apply_semantic_invalidation(project_root: Path, diff: Dict[str, Any]) -> Di
             "decay": get_weighted_decay(classification.change_type, str(file_path)),
         }
         report["details"].append(detail)
+        # ── Runtime event: invalidation triggered ──
+        try:
+            from .event_bus import get_event_bus, INVALIDATION_TRIGGERED, INVALIDATION_PROPAGATED
+            _inv_bus = get_event_bus()
+            _inv_bus.emit(INVALIDATION_TRIGGERED, {
+                "file": rel_path,
+                "change_type": classification.change_type,
+                "confidence": classification.semantic_confidence,
+            })
+        except Exception:
+            pass
+
         if classification.change_type == "signature_change":
             report["signature_changes"] += 1
             log_invalidation("signature_change_detected", rel_path,
@@ -399,6 +428,15 @@ def _apply_semantic_invalidation(project_root: Path, diff: Dict[str, Any]) -> Di
         if should_prop:
             report["propagated"] += 1
             log_invalidation("propagating_invalidation", rel_path, reason, "warn")
+            # ── Runtime event: invalidation propagated ──
+            try:
+                _inv_bus.emit(INVALIDATION_PROPAGATED, {
+                    "file": rel_path,
+                    "depth": 1,
+                    "reason": reason,
+                })
+            except Exception:
+                pass
         if _is_high_risk_module(str(file_path)):
             report["high_risk_hits"] += 1
         report["confidence_decay_applied"] += get_weighted_decay(classification.change_type, str(file_path))
@@ -443,6 +481,12 @@ def update_cache(project_root: Path) -> Dict[str, Any]:
         return {"manifest": status.get("manifest", {}),
                 "cache_dir": str(paths["root"]), "updated": False}
 
+    # If many files changed, log a warning but don't fail
+    total_changed = len(diff.get("added", [])) + len(diff.get("removed", [])) + len(diff.get("changed", []))
+    if total_changed > 10:
+        import sys
+        print(f"[aihelper] auto-maintain: {total_changed} files changed (incremental update)", file=sys.stderr)
+
     # v0.1: Semantic invalidation
     invalidation_report = _apply_semantic_invalidation(project_root, diff)
 
@@ -478,9 +522,53 @@ def update_cache(project_root: Path) -> Dict[str, Any]:
     except Exception:
         manifest["sqlite_synced"] = False
 
+    # ── Runtime event: cache updated ──
+    _emit_cache_updated(project_root, diff)
+
     return {"manifest": manifest, "cache_dir": str(paths["root"]),
             "updated": True, "changes": diff,
             "invalidation": invalidation_report}
+
+
+def auto_maintain_cache(project_root: Path) -> Dict[str, Any]:
+    """Auto-maintain the cache — build if missing, update if stale.
+
+    Checks if a fresh cache exists. If not, does a full build.
+    If it does, runs incremental update_cache().
+    Emits a ``cache.auto_maintained`` event on success.
+
+    Returns a dict with 'manifest' and optional 'updated' booleans.
+    """
+    project_root = project_root.resolve()
+    status = cache_status(project_root)
+
+    if not status.get("fresh"):
+        result = build_cache(project_root)
+        updated = False
+    else:
+        result = update_cache(project_root)
+        updated = result.get("updated", False)
+
+    # ── Runtime event: auto-maintained ──
+    try:
+        from .event_bus import get_event_bus, CACHE_AUTO_MAINTAINED
+        _cb = get_event_bus()
+        manifest = result.get("manifest", {})
+        _cb.emit(CACHE_AUTO_MAINTAINED, {
+            "fresh": status.get("fresh", False),
+            "file_count": manifest.get("file_count", 0),
+            "symbol_count": manifest.get("symbol_count", 0),
+            "project_root": str(project_root),
+            "updated": updated,
+        })
+    except Exception:
+        pass
+
+    return {
+        "manifest": result.get("manifest", {}),
+        "cache_dir": result.get("cache_dir", ""),
+        "updated": updated,
+    }
 
 
 def build_file_index(project_root: Path) -> Dict[str, Any]:
@@ -505,6 +593,7 @@ def build_file_index(project_root: Path) -> Dict[str, Any]:
                 "mtime_ns": stat.st_mtime_ns,
                 "sha1_head": _file_digest(path),
                 "semantic_sha1": _semantic_digest(text, extension) if text else "",
+                "content_sha256": _content_sha256(path),
             }
         )
     return {"files": files, "extension_counts": extension_counts, "count": len(files)}
@@ -683,13 +772,38 @@ def cache_diff(project_root: Path) -> Dict[str, Any]:
         for path, item in current_by_path.items()
         if path in cached_by_path and item.get("semantic_sha1") != cached_by_path[path].get("semantic_sha1")
     )
+    content_changed = sorted(
+        path
+        for path, item in current_by_path.items()
+        if path in cached_by_path
+        and item.get("content_sha256")
+        and cached_by_path[path].get("content_sha256")
+        and item.get("content_sha256") != cached_by_path[path].get("content_sha256")
+    )
+
+    # Catch stale-restore: if current file index has MORE files or NEWER timestamps, force dirty
+    current_count = len(current_by_path)
+    cached_count = len(cached_by_path)
+    stale_restore = current_count > cached_count
+    if not stale_restore and current_count == cached_count:
+        # Check mtime_ns of current files — if any are newer than cached, mark dirty
+        for path, item in current_by_path.items():
+            cached_item = cached_by_path.get(path)
+            if cached_item and item.get("mtime_ns", 0) > cached_item.get("mtime_ns", 0):
+                stale_restore = True
+                break
+
+    dirty = bool(added or removed or changed or content_changed or stale_restore)
+
     return {
         "project_root": str(project_root),
         "added": added,
         "removed": removed,
         "changed": changed,
         "semantic_changed": semantic_changed,
-        "dirty": bool(added or removed or changed),
+        "content_changed": content_changed,
+        "stale_restore": stale_restore,
+        "dirty": dirty,
     }
 
 
@@ -883,7 +997,23 @@ def _ensure_sqlite_synced(project_root: Path, manifest: Dict) -> None:
         pass  # Non-fatal — SQLite will sync on next full build
 
 
+def _persist_fresh_cache(project_root: Path) -> None:
+    """Persist freshly built cache to override any stale persisted data."""
+    try:
+        from .cache_persistence import persist_cache
+    except ImportError:
+        from cache_persistence import persist_cache
+    persist_cache(project_root, force=True)
+
+
 def build_cache(project_root: Path) -> Dict[str, Any]:
+    _start = None
+    try:
+        from datetime import datetime, timezone
+        _start = datetime.now(timezone.utc)
+    except Exception:
+        pass
+
     project_root = project_root.resolve()
     paths = cache_paths(project_root)
     paths["root"].mkdir(parents=True, exist_ok=True)
@@ -905,7 +1035,9 @@ def build_cache(project_root: Path) -> Dict[str, Any]:
                 # v0.1: After restore, ensure SQLite is synced
                 if not manifest.get("sqlite_synced"):
                     _ensure_sqlite_synced(project_root, manifest)
-                return {"manifest": manifest, "cache_dir": str(paths["root"]), "restored_from_persist": True}
+                result = {"manifest": manifest, "cache_dir": str(paths["root"]), "restored_from_persist": True}
+                _emit_cache_rebuilt(project_root, manifest, _start)
+                return result
             except (json.JSONDecodeError, OSError):
                 pass
 
@@ -948,7 +1080,56 @@ def build_cache(project_root: Path) -> Dict[str, Any]:
     except Exception:
         manifest["preferences_detected"] = 0
 
+    # ── Persist fresh cache to override stale persisted data ────
+    global _cache_rebuild_count
+    _cache_rebuild_count += 1
+    try:
+        _persist_fresh_cache(project_root)
+    except Exception:
+        import sys
+        print(f"[aihelper] Cache persist warning: non-fatal", file=sys.stderr)
+
+    _emit_cache_rebuilt(project_root, manifest, _start)
+
     return {"manifest": manifest, "cache_dir": str(paths["root"])}
+
+
+def _emit_cache_rebuilt(project_root: Path, manifest: Dict[str, Any], start: Any) -> None:
+    """Emit cache.rebuilt event (best-effort)."""
+    duration_ms = 0
+    if start:
+        try:
+            from datetime import datetime, timezone
+            duration_ms = int((datetime.now(timezone.utc) - start).total_seconds() * 1000)
+        except Exception:
+            pass
+    try:
+        from .event_bus import get_event_bus, CACHE_REBUILT
+        _cb = get_event_bus()
+        _cb.emit(CACHE_REBUILT, {
+            "file_count": manifest.get("file_count", 0),
+            "symbol_count": manifest.get("symbol_count", 0),
+            "duration_ms": duration_ms,
+            "project_root": str(project_root),
+            "restored_from_persist": manifest.get("restored_from_persist", False),
+        })
+    except Exception:
+        pass
+
+
+def _emit_cache_updated(project_root: Path, diff: Dict[str, Any]) -> None:
+    """Emit cache.updated event (best-effort)."""
+    try:
+        from .event_bus import get_event_bus, CACHE_UPDATED
+        _cb = get_event_bus()
+        changed = diff.get("dirty", [])
+        _cb.emit(CACHE_UPDATED, {
+            "change_count": len(changed),
+            "project_root": str(project_root),
+            "changed_files": changed[:30],
+        })
+    except Exception:
+        pass
 
 
 def warm_project(project_root: Path) -> Dict[str, Any]:
@@ -991,6 +1172,7 @@ def cache_status(project_root: Path, include_diff: bool = False) -> Dict[str, An
         "fresh": bool(manifest and manifest.get("version") == AIHELPER_CACHE_VERSION),
         "manifest": manifest or {},
         "files": existing,
+        "rebuild_count": _cache_rebuild_count,
     }
     if include_diff:
         result["diff"] = cache_diff(project_root.resolve()) if manifest else {}

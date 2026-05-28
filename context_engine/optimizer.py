@@ -19,6 +19,23 @@ from typing import Any, Dict, List
 from .primitives import get_primitive
 
 
+# ── Runtime event helper ───────────────────────────────────────
+
+def _emit_pass_event(pass_name: str, nodes_before: int, nodes_after: int) -> None:
+    """Emit an optimizer.pass_applied event (best-effort)."""
+    try:
+        from .event_bus import get_event_bus, OPTIMIZER_PASS_APPLIED
+        _obus = get_event_bus()
+        _obus.emit(OPTIMIZER_PASS_APPLIED, {
+            "pass_name": pass_name,
+            "nodes_before": nodes_before,
+            "nodes_after": nodes_after,
+            "optimization_ratio": round(nodes_after / max(nodes_before, 1), 4),
+        })
+    except Exception:
+        pass
+
+
 @dataclass
 class OptimizationResult:
     """Result of running optimization passes on a primitive DAG.
@@ -80,6 +97,7 @@ def optimize_dag(primitive_names: List[str],
     result = deduplicate_pass(original)
     if len(result) < len(original):
         applied_passes.append("deduplication")
+        _emit_pass_event("deduplication", len(original), len(result))
         # Track eliminated duplicates by counting occurrences
         from collections import Counter
         orig_counts = Counter(original)
@@ -93,6 +111,7 @@ def optimize_dag(primitive_names: List[str],
     result, folded = constant_folding_pass_with_report(result, context, primitive_cache)
     if folded:
         applied_passes.append("constant_folding")
+        _emit_pass_event("constant_folding", len(result) + len(folded), len(result))
         folded_nodes.extend(folded)
         cache_hit_nodes.extend(folded)
 
@@ -100,6 +119,7 @@ def optimize_dag(primitive_names: List[str],
     purity_issues = _check_purity_safety(result)
     if not purity_issues:
         applied_passes.append("purity_check_passed")
+        _emit_pass_event("purity_check", len(result), len(result))
 
     # Calculate estimated speedup
     estimated_speedup = _estimate_speedup(original, result, primitive_cache, context)

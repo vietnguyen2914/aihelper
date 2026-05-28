@@ -1,0 +1,206 @@
+{
+  "suite": "Graph-Driven Execution Validation",
+  "project": "/Users/vietnguyen/github/aihelper",
+  "timestamp": "2026-05-27T22:55:31Z",
+  "tests": {
+    "graph_has_symbols": {
+      "passed": true,
+      "detail": "symbol_count=1555",
+      "metrics": {}
+    },
+    "graph_has_files": {
+      "passed": true,
+      "detail": "file_count=175",
+      "metrics": {}
+    },
+    "graph_has_edges": {
+      "passed": true,
+      "detail": "edge_count=899",
+      "metrics": {}
+    },
+    "nodes_by_kind_has_expected_kinds": {
+      "passed": true,
+      "detail": "kinds=['class', 'const', 'file', 'function', 'method']",
+      "metrics": {}
+    },
+    "files_by_language_has_python_markdown": {
+      "passed": true,
+      "detail": "languages=['java', 'javascript', 'json', 'markdown', 'python', 'yaml']",
+      "metrics": {}
+    },
+    "journal_mode_is_wal": {
+      "passed": true,
+      "detail": "journal_mode=wal",
+      "metrics": {}
+    },
+    "search_symbols_finds_build_registry": {
+      "passed": true,
+      "detail": "found 2 results",
+      "metrics": {}
+    },
+    "search_symbols_finds_eventbus": {
+      "passed": true,
+      "detail": "found 2 results",
+      "metrics": {}
+    },
+    "search_symbols_finds_classify_change": {
+      "passed": true,
+      "detail": "found 2 results",
+      "metrics": {}
+    },
+    "symbol_lookup_latency_build_registry": {
+      "passed": true,
+      "detail": "avg=0.13ms",
+      "metrics": {
+        "avg_ms": 0.13
+      }
+    },
+    "symbol_lookup_latency_EventBus": {
+      "passed": true,
+      "detail": "avg=0.09ms",
+      "metrics": {
+        "avg_ms": 0.09
+      }
+    },
+    "symbol_lookup_latency_classify_change": {
+      "passed": true,
+      "detail": "avg=0.12ms",
+      "metrics": {
+        "avg_ms": 0.12
+      }
+    },
+    "callees_of_get_db": {
+      "passed": true,
+      "detail": "found 0 callees: (none)",
+      "metrics": {
+        "callee_count": 0
+      }
+    },
+    "impact_radius_returns_files": {
+      "passed": true,
+      "detail": "impacted 1 symbols across 1 files",
+      "metrics": {
+        "symbol_count": 1,
+        "file_count": 1
+      }
+    },
+    "risk_level_present": {
+      "passed": true,
+      "detail": "risk_level=low, files_affected=1",
+      "metrics": {}
+    },
+    "transitive_callers_found": {
+      "passed": true,
+      "detail": "depths=[0], total=1",
+      "metrics": {
+        "depth_levels": [
+          0
+        ],
+        "total_nodes": 1
+      }
+    },
+    "tier_recommendation_not_unknown": {
+      "passed": true,
+      "detail": "tier=deterministic",
+      "metrics": {}
+    },
+    "allowed_primitives_non_empty": {
+      "passed": true,
+      "detail": "5 primitives: ['graph.analyze_target', 'memory.recall', 'context.compress', 'test.run', 'test.generate_stub']",
+      "metrics": {}
+    },
+    "partitions_detected": {
+      "passed": true,
+      "detail": "5 partitions",
+      "metrics": {
+        "partition_count": 5
+      }
+    },
+    "dependency_graph_analyzed": {
+      "passed": true,
+      "detail": "dep_graph has 8 nodes",
+      "metrics": {}
+    },
+    "isolated_regions_found": {
+      "passed": true,
+      "detail": "5 regions, primitives partitioned: 8",
+      "metrics": {}
+    },
+    "critical_path_computed": {
+      "passed": true,
+      "detail": "critical_path length=2: ['graph.trace_callers', 'graph.analyze_target']...",
+      "metrics": {}
+    },
+    "graph_db_accessible_and_returns_real_data": {
+      "passed": true,
+      "detail": "symbols=1555, files=175, edges=899",
+      "metrics": {}
+    },
+    "event_bus_events_from_graph_primitives": {
+      "passed": true,
+      "detail": "primitive executed OK, event_count=1; event emission depends on primitive wrapper layer",
+      "metrics": {
+        "event_count": 1
+      }
+    },
+    "cache_diff_before_edit": {
+      "passed": true,
+      "detail": "dirty=True, added=7, removed=0",
+      "metrics": {}
+    },
+    "cache_diff_detects_new_file": {
+      "passed": true,
+      "detail": "dirty=True, added=tmpr3rxxxnv.py",
+      "metrics": {}
+    },
+    "classify_change_detects_signature_change": {
+      "passed": true,
+      "detail": "type=signature_change, changed=['original_func', 'new_func']",
+      "metrics": {}
+    },
+    "graph_stats_latency": {
+      "passed": true,
+      "detail": "avg=0.20ms over 5 runs",
+      "metrics": {
+        "avg_ms": 0.2
+      }
+    },
+    "search_latency_under_100ms": {
+      "passed": true,
+      "detail": "max=0.33ms, avg=0.23ms over 10 symbols",
+      "metrics": {
+        "max_ms": 0.33,
+        "avg_ms": 0.23
+      }
+    },
+    "name_search_latency_under_100ms": {
+      "passed": true,
+      "detail": "max=0.35ms, avg=0.24ms",
+      "metrics": {
+        "max_ms": 0.35,
+        "avg_ms": 0.24
+      }
+    },
+    "callers_query_latency_under_200ms": {
+      "passed": true,
+      "detail": "max=0.19ms, avg=0.15ms over 5",
+      "metrics": {
+        "max_ms": 0.19,
+        "avg_ms": 0.15
+      }
+    },
+    "callees_query_latency_under_200ms": {
+      "passed": true,
+      "detail": "max=0.15ms, avg=0.14ms over 5",
+      "metrics": {
+        "max_ms": 0.15,
+        "avg_ms": 0.14
+      }
+    }
+  },
+  "summary": {
+    "passed": 32,
+    "failed": 0,
+    "skipped": 0
+  }
+}

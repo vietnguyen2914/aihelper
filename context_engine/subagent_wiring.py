@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 
 # ── CognitionPackage dataclass ──────────────────────────────────
@@ -143,7 +143,50 @@ def compile_cognition_package(
         token_budget=max_tokens,
     )
 
+    # ── Runtime event: cognition package compiled ──
+    try:
+        from .event_bus import get_event_bus, COGNITION_PACKAGE_COMPILED
+        _cog_bus = get_event_bus()
+        _cog_bus.emit(COGNITION_PACKAGE_COMPILED, {
+            "task": task[:200],
+            "target": target[:200],
+            "tier_recommendation": tier_recommendation,
+            "invalidation_scope": invalidation_scope,
+            "allowed_primitives": len(allowed_primitives),
+            "token_budget": max_tokens,
+            "caller_count": graph_boundary.get("total_callers", 0),
+            "callee_count": graph_boundary.get("total_callees", 0),
+        })
+    except Exception:
+        pass
+
     return package.to_dict()
+
+
+RUNTIME_CONSTRAINTS_TEMPLATE = """## RUNTIME EXECUTION CONSTRAINT — MANDATORY
+
+You are an execution shard, NOT a free autonomous agent.
+
+### FORBIDDEN (will cause execution rejection):
+- ❌ Running terminal find/grep to explore the codebase
+- ❌ Reading files outside your assigned graph boundary
+- ❌ Making frontier/cloud LLM calls for tasks marked as "local_model"
+- ❌ Scanning the repository to discover files
+
+### REQUIRED (must use):
+- ✅ aihelper_context for project overview
+- ✅ aihelper_symbol_lookup to find symbols (NOT grep)
+- ✅ aihelper_callers/aihelper_callees for dependency tracing
+- ✅ Ollama local model for all tasks marked "local_model"
+- ✅ Stay within graph_boundary: only touch files in your assigned call graph
+
+### EXECUTION BOUNDARY:
+- Graph boundary: {graph_boundary}
+- Tier: {tier_recommendation} (do NOT escalate without permission)
+- Invalidation scope: {invalidation_scope}
+- Allowed primitives: {allowed_primitives}
+- Token budget: {token_budget}
+"""
 
 
 # ── Prompt generation ───────────────────────────────────────────
@@ -153,6 +196,8 @@ def generate_subagent_prompt(cognition_package: Dict[str, Any]) -> str:
 
     The prompt includes both Vietnamese and English directives so the
     sub-agent understands constraints regardless of its configured language.
+    Includes runtime constraints with forbidden/required rules, graph boundary,
+    tier recommendation, invalidation scope, allowed primitives, and token budget.
 
     Args:
         cognition_package: A CognitionPackage dict (from to_dict()).
@@ -210,6 +255,21 @@ def generate_subagent_prompt(cognition_package: Dict[str, Any]) -> str:
     }
     scope_guidance = scope_map.get(scope, scope_map["symbol"])
 
+    # ── Build runtime constraints block ──────────────────────────
+    boundary_summary = (
+        f"target={graph.get('target', 'N/A')}, "
+        f"callers={graph.get('total_callers', 0)}, "
+        f"callees={graph.get('total_callees', 0)}, "
+        f"max_depth={graph.get('max_depth', 2)}"
+    )
+    runtime_constraints = RUNTIME_CONSTRAINTS_TEMPLATE.format(
+        graph_boundary=boundary_summary,
+        tier_recommendation=tier,
+        invalidation_scope=scope,
+        allowed_primitives=", ".join(primitives[:10]) if primitives else "all available",
+        token_budget=budget,
+    )
+
     # ── Assemble the prompt ──────────────────────────────────────
     prompt = f"""=== AIHELPER SUB-AGENT DIRECTIVES ===
 
@@ -231,6 +291,8 @@ def generate_subagent_prompt(cognition_package: Dict[str, Any]) -> str:
 
 7. TOKEN_BUDGET: {budget} tokens tối đa. TOKEN_BUDGET: {budget} tokens max.
 
+{runtime_constraints}
+
 [TASK]
 {ctx.get('question', 'No task specified')}
 
@@ -240,6 +302,9 @@ Callers ({graph.get('total_callers', 0)} total): {json.dumps(graph.get('callers'
 Callees ({graph.get('total_callees', 0)} total): {json.dumps(graph.get('callees', []), ensure_ascii=False)}
 Max depth: {graph.get('max_depth', 2)}
 
+[EXECUTION FILES]
+{json.dumps(ctx.get('files', []), ensure_ascii=False)}
+
 [COGNITION PACKAGE]
 {json.dumps(ctx, default=str, ensure_ascii=False, indent=2)}
 
@@ -248,7 +313,128 @@ Max depth: {graph.get('max_depth', 2)}
     return prompt.strip()
 
 
+# ── Subagent execution validation ────────────────────────────────
+
+
+def validate_subagent_execution(
+    task: str,
+    tier_recommendation: str,
+    event_bus_session: str | None = None,
+) -> Dict[str, Any]:
+    """Validate that a subagent followed runtime execution rules.
+
+    Checks the event bus for FRONTIER_ESCALATION events associated
+    with this task. If the tier was "local_model" but frontier calls
+    were made, that is a violation.
+
+    Args:
+        task: The task the subagent was given.
+        tier_recommendation: The assigned tier.
+        event_bus_session: Optional session id to scope the check.
+
+    Returns:
+        Dict with {
+            "valid": bool,
+            "violations": List[str],
+            "tier": str,
+            "escalation_count": int,
+        }
+    """
+    violations: List[str] = []
+    escalation_count = 0
+
+    try:
+        from .event_bus import get_event_bus, FRONTIER_ESCALATION
+
+        bus = get_event_bus()
+        events = bus.get_events(event_type=FRONTIER_ESCALATION, limit=50)
+
+        for ev in events:
+            if task and task[:100] not in str(ev.get("data_json", {})):
+                continue
+
+            escalation_count += 1
+
+            if tier_recommendation == "local_model":
+                violations.append(
+                    f"Frontier escalation detected for local_model task "
+                    f"'{task[:80]}' — count {escalation_count}"
+                )
+
+    except Exception as exc:
+        violations.append(f"Event bus check failed: {exc}")
+
+    return {
+        "valid": len(violations) == 0,
+        "violations": violations,
+        "tier": tier_recommendation,
+        "escalation_count": escalation_count,
+    }
+
+
+def enforce_subagent_boundary(
+    touched_files: List[str],
+    graph_boundary: Dict[str, Any],
+) -> Dict[str, Any]:
+    """Enforce that a subagent only accessed files within its graph boundary.
+
+    The graph_boundary contains a list of files (from callers + callees).
+    Any file in touched_files that is NOT in the boundary is flagged.
+
+    Args:
+        touched_files: List of file paths the subagent accessed.
+        graph_boundary: The CognitionPackage graph_boundary dict containing
+            'callers', 'callees', and 'target'.
+
+    Returns:
+        Dict with {
+            "valid": bool,
+            "boundary_violations": List[str],
+            "allowed_files": List[str],
+            "touched_count": int,
+            "boundary_count": int,
+        }
+    """
+    # Build the set of allowed files from the graph boundary.
+    # The graph boundary may include file_path entries from callers/callees
+    # and the target symbol's own file.
+    allowed_files: set = set()
+
+    for key in ("callers", "callees"):
+        entries = graph_boundary.get(key, [])
+        for entry in entries:
+            if isinstance(entry, dict):
+                fp = entry.get("file_path") or entry.get("file")
+                if fp:
+                    allowed_files.add(fp)
+            elif isinstance(entry, str):
+                # If it's just a symbol name, no file path inferable
+                pass
+
+    target_symbol = graph_boundary.get("target", "")
+    if target_symbol:
+        # We may not have the file path for the target itself
+        # so be permissive — don't flag target symbol usage
+        pass
+
+    # Check each touched file
+    boundary_violations: List[str] = []
+    for f in touched_files:
+        if not any(f.endswith(allowed) or allowed in f for allowed in allowed_files):
+            if allowed_files:
+                boundary_violations.append(f"File '{f}' is outside graph boundary")
+
+    return {
+        "valid": len(boundary_violations) == 0,
+        "boundary_violations": boundary_violations,
+        "allowed_files": sorted(allowed_files),
+        "touched_count": len(touched_files),
+        "boundary_count": len(allowed_files),
+    }
+
+
 # ── Daemon handlers ─────────────────────────────────────────────
+
 
 def handle_subagent_wiring(params: Dict[str, Any]) -> Dict[str, Any]:
     """Daemon handler: compile cognition package + generate prompt.

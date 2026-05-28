@@ -1,0 +1,60 @@
+{
+  "suite": "Local Model Execution Proof",
+  "timestamp": "2026-05-27T23:40:15Z",
+  "results": [
+    {
+      "name": "Force-local routing",
+      "passed": true,
+      "actual": "30/30 local, 0 frontier",
+      "expected": "30/30 local, 0 frontier",
+      "detail": "enforcement_failure_count=30"
+    },
+    {
+      "name": "Ollama invocable",
+      "passed": true,
+      "actual": "success=True, response_len=445",
+      "expected": "success=True, response_len > 0",
+      "detail": "model=qwen3.5:4b-16k, duration_ms=0.0, error=None"
+    },
+    {
+      "name": "Local model events",
+      "passed": true,
+      "actual": "30 local, 0 frontier",
+      "expected": "30 local, 0 frontier",
+      "detail": "total tier.selected events=30"
+    },
+    {
+      "name": "Frontier blocked for simple tasks",
+      "passed": true,
+      "actual": "20 downgraded, 0 frontier leaks",
+      "expected": "20 downgraded, 0 frontier leaks",
+      "detail": "enforcement_failure_count increased by 20"
+    },
+    {
+      "name": "Tier ratio under policy",
+      "passed": true,
+      "actual": "frontier=5.0% (10/200), local=80.0% (160/200)",
+      "expected": "frontier \u2264 5%, local \u2265 40%",
+      "detail": "det=30, enforcement_failures=160"
+    },
+    {
+      "name": "Runtime trace proves local",
+      "passed": true,
+      "actual": "local_tier=True, ollama=True, frontier_esc=False, frontier_inv=False, event_count=10",
+      "expected": "local_tier=True, ollama=True, frontier_esc=False, frontier_inv=False",
+      "detail": "0 FRONTIER_ESCALATION events, 0 FRONTIER_INVOKED events"
+    },
+    {
+      "name": "Event bus accumulation",
+      "passed": true,
+      "actual": "ollama=50, frontier_ratio=0.0",
+      "expected": "ollama=50, frontier_ratio=0.0",
+      "detail": "total_events=50, by_type_keys=['ollama.invoked']"
+    }
+  ],
+  "all_passed": true,
+  "passed_count": 7,
+  "total_checks": 7,
+  "verdict": "LOCAL MODEL EXECUTION PROVEN",
+  "project": "/Users/vietnguyen/github/aihelper"
+}

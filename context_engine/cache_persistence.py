@@ -55,7 +55,7 @@ def persist_path(project_root: Path) -> Path:
     return PERSIST_ROOT / _project_persist_key(project_root)
 
 
-def persist_cache(project_root: Path) -> Dict:
+def persist_cache(project_root: Path, force: bool = False) -> Dict:
     """Sync RAM-based .ai-cache/aihelper to SSD persistence directory."""
     project_root = project_root.resolve()
     cache_dir = project_root / ".ai-cache" / "aihelper"
@@ -65,6 +65,10 @@ def persist_cache(project_root: Path) -> Dict:
         return {"persisted": False, "reason": "no_cache_dir", "project": str(project_root)}
 
     dest.parent.mkdir(parents=True, exist_ok=True)
+
+    # When force=True, delete existing persisted data first to ensure fresh override
+    if force and dest.exists():
+        shutil.rmtree(dest)
 
     # Use rsync if available for efficiency, else shutil
     rsync = shutil.which("rsync")
@@ -99,13 +103,40 @@ def persist_cache(project_root: Path) -> Dict:
 
 
 def restore_cache(project_root: Path) -> Dict:
-    """Restore cache from SSD persistence to RAM disk."""
+    """Restore cache from SSD persistence to RAM disk.
+
+    If the persisted timestamp is OLDER than the current cache's built_at
+    timestamp, the restore is skipped — the cache is already fresher.
+    """
     project_root = project_root.resolve()
     cache_dir = project_root / ".ai-cache" / "aihelper"
     src = persist_path(project_root) / "aihelper"
 
     if not src.exists():
         return {"restored": False, "reason": "no_persisted_cache", "project": str(project_root)}
+
+    # If current cache has a NEWER built_at than the persisted data, skip restore
+    cache_manifest_path = cache_dir / "manifest.json"
+    if cache_manifest_path.exists():
+        try:
+            with open(cache_manifest_path) as f:
+                cache_manifest = json.load(f)
+            cache_built_at = cache_manifest.get("built_at", "")
+            persist_meta_path = src / "persist_meta.json"
+            if persist_meta_path.exists():
+                with open(persist_meta_path) as f:
+                    persist_meta = json.load(f)
+                persist_at = persist_meta.get("persisted_at", "")
+                if cache_built_at and persist_at and cache_built_at > persist_at:
+                    return {
+                        "restored": False,
+                        "reason": "cache_newer_than_persist",
+                        "project": str(project_root),
+                        "cache_built_at": cache_built_at,
+                        "persisted_at": persist_at,
+                    }
+        except (json.JSONDecodeError, OSError):
+            pass
 
     is_ramdisk = _is_ramdisk_symlink(project_root)
 
@@ -244,15 +275,24 @@ def auto_restore_if_needed(project_root: Path) -> Dict:
                     pm = json.load(f)
                 with open(manifest_path) as f:
                     cm = json.load(f)
-                persist_time = pm.get("persisted_at", "")
+                # Compare actual cache content timestamps (built_at), not sync timestamps
+                # persisted_at is the sync time, not the data content time.
+                # Read the persisted manifest.json to get its built_at.
+                persist_manifest_path = persist_dir / "manifest.json"
+                persist_built_at = ""
+                if persist_manifest_path.exists():
+                    try:
+                        with open(persist_manifest_path) as f:
+                            pm_cache = json.load(f)
+                        persist_built_at = pm_cache.get("built_at", "")
+                    except (json.JSONDecodeError, OSError):
+                        pass
                 cache_time = cm.get("built_at", "")
-                # v0.1 fix: also verify persist files actually exist,
-                # not just timestamp comparison
                 has_persist_files = persist_dir.exists() and any(
                     f.suffix == '.json' and f.name != 'persist_meta.json'
                     for f in persist_dir.iterdir()
                 ) if persist_dir.exists() else False
-                if persist_time and cache_time and persist_time > cache_time and has_persist_files:
+                if persist_built_at and cache_time and persist_built_at > cache_time and has_persist_files:
                     needs_restore = True
                     reason = "persist_newer_than_cache"
             except (json.JSONDecodeError, OSError):

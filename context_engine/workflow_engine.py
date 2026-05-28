@@ -131,6 +131,16 @@ class WorkflowEngine:
         trace_id = str(uuid.uuid4())[:8]
         timestamp = datetime.now(timezone.utc).isoformat()
 
+        # ── Runtime event: workflow started ──
+        try:
+            from .event_bus import get_event_bus, WORKFLOW_STARTED
+            get_event_bus().emit(WORKFLOW_STARTED, {
+                "name": name,
+                "primitives": [p.get("name", "") for p in wf_def.get("phases", [])],
+            })
+        except Exception:
+            pass
+
         for phase_def in wf_def.get("phases", []):
             phase_name = phase_def["name"]
             phase_kind = PhaseKind(phase_def.get("kind", "deterministic"))
@@ -175,10 +185,71 @@ class WorkflowEngine:
             trace_id=trace_id, timestamp=timestamp,
         )
 
-        # ── Observability: record workflow run ──
-        self._record_observability(wf_result)
+        # ── Runtime event: workflow completed ──
+        try:
+            from .event_bus import get_event_bus, WORKFLOW_COMPLETED
+            get_event_bus().emit(WORKFLOW_COMPLETED, {
+                "name": name,
+                "success": wf_result.success,
+                "duration_ms": round(total_duration, 2),
+                "ai_calls": ai_calls,
+                "det_steps": det_steps,
+                "total_tokens": total_tokens,
+            })
+        except Exception:
+            pass
 
         return wf_result
+
+    def run_subagent(self, task: str, target: str, max_tokens: int = 2000) -> Dict[str, Any]:
+        """Execute a subagent through the full cognition runtime pipeline.
+
+        This is THE key method that makes subagents runtime-owned instead of
+        frontier-autonomous. It goes through tier enforcement, cognition package
+        compilation, and event emission — NOT raw frontier autonomy.
+        """
+        # Emit workflow started
+        try:
+            from .event_bus import get_event_bus
+            bus = get_event_bus()
+            bus.emit("subagent.started", {"task": task, "target": target})
+        except Exception:
+            bus = None
+
+        # Step 1: Compile cognition package
+        from .subagent_wiring import compile_cognition_package, generate_subagent_prompt
+        from .tier_router import enforce_tier, route_tier
+
+        pkg = compile_cognition_package(task, target, self.root, max_tokens)
+
+        # Step 2: Route through tier enforcement
+        tier_result = route_tier(task, self.root)
+        enforced_tier = tier_result.get("enforced_tier", "deterministic")
+        escalation_reason = tier_result.get("escalation_reason", "")
+
+        # Step 3: Generate runtime-enforced prompt with full constraints
+        prompt = generate_subagent_prompt(pkg)
+
+        # Step 4: Emit completion events
+        if bus:
+            bus.emit("subagent.completed", {
+                "task": task, "tier": enforced_tier,
+                "cognition_package_size": len(str(pkg)),
+                "prompt_size": len(prompt),
+            })
+            if enforced_tier == "frontier":
+                bus.emit("frontier.escalation", {
+                    "task": task, "expected_tier": tier_result.get("recommended_tier", "unknown"),
+                    "reason": escalation_reason,
+                })
+
+        return {
+            "cognition_package": pkg,
+            "prompt": prompt,
+            "tier": enforced_tier,
+            "escalation_reason": escalation_reason,
+            "runtime_owned": True,
+        }
 
     def _execute_phase(self, phase_def: Dict, context: Dict) -> PhaseResult:
         """Execute a single phase, with `uses: [...]` primitive composition support."""
@@ -234,22 +305,67 @@ class WorkflowEngine:
                     errors.append(f"Unknown primitive: {prim_name}")
                     continue
 
+                # ── Runtime event: primitive started ──
+                try:
+                    from .event_bus import get_event_bus, PRIMITIVE_STARTED, CACHE_HIT, CACHE_MISS, PRIMITIVE_COMPLETED
+                    bus = get_event_bus()
+                    inputs_hash = prim.contract.fingerprint_inputs(context) if prim.contract else None
+                    bus.emit(PRIMITIVE_STARTED, {
+                        "name": prim_name,
+                        "inputs_hash": inputs_hash,
+                    })
+                except Exception:
+                    pass
+
+                prim_t0 = time.time()
+
                 # Skip cache hits — result already known
                 if prim_name in opt_result.cache_hits:
                     cache_key = f"{prim_name}:{prim.contract.fingerprint_inputs(context)}"
                     if cache_key in self._primitive_cache:
                         combined_output.update(self._primitive_cache[cache_key])
+                        # ── Runtime event: cache hit ──
+                        try:
+                            bus.emit(CACHE_HIT, {"key": cache_key, "primitive": prim_name})
+                            bus.emit(PRIMITIVE_COMPLETED, {
+                                "name": prim_name, "duration_ms": 0.0, "cache_hit": True,
+                            })
+                        except Exception:
+                            pass
                         continue
+                    else:
+                        # ── Runtime event: cache miss ──
+                        try:
+                            bus.emit(CACHE_MISS, {"key": cache_key, "primitive": prim_name})
+                        except Exception:
+                            pass
 
                 try:
                     output = prim.execute(context, self.root)
+                    prim_elapsed = (time.time() - prim_t0) * 1000
                     combined_output.update(output)
                     if prim.contract.cacheable and prim.contract.is_pure:
                         ck = f"{prim_name}:{prim.contract.fingerprint_inputs(context)}"
                         self._primitive_cache[ck] = dict(output)
+                    # ── Runtime event: primitive completed ──
+                    try:
+                        bus.emit(PRIMITIVE_COMPLETED, {
+                            "name": prim_name, "duration_ms": round(prim_elapsed, 2), "cache_hit": False,
+                        })
+                    except Exception:
+                        pass
                 except Exception as e:
+                    prim_elapsed = (time.time() - prim_t0) * 1000
                     all_success = False
                     errors.append(f"Primitive '{prim_name}' failed: {e}")
+                    # ── Runtime event: primitive completed (failed) ──
+                    try:
+                        bus.emit(PRIMITIVE_COMPLETED, {
+                            "name": prim_name, "duration_ms": round(prim_elapsed, 2),
+                            "cache_hit": False, "error": str(e),
+                        })
+                    except Exception:
+                        pass
 
         # ── v0.1: Include optimizer stats in profiling ──
         combined_output["_profiling"] = {
@@ -438,34 +554,77 @@ class WorkflowEngine:
 
     def _call_ollama(self, phase_def: Dict, ctx: Dict) -> PhaseResult:
         import subprocess
+        import time as _time
         model = phase_def.get("model", "qwen3.5:4b-16k")
         prompt_template = phase_def.get("prompt_template", "")
         try:
             prompt = prompt_template.format(**ctx)
         except KeyError:
             prompt = prompt_template
+        t0 = _time.time()
         try:
             result = subprocess.run(
                 ["ollama", "run", model, prompt],
                 capture_output=True, text=True, timeout=60,
             )
+            duration_ms = round((_time.time() - t0) * 1000, 2)
             tokens = len(prompt.split()) + len(result.stdout.split())
+            # ── Runtime event: ollama invoked ──
+            try:
+                from .event_bus import get_event_bus, OLLAMA_INVOKED
+                get_event_bus().emit(OLLAMA_INVOKED, {
+                    "model": model,
+                    "task": phase_def.get("name", "?"),
+                    "duration_ms": duration_ms,
+                    "tokens": tokens,
+                    "success": True,
+                })
+            except Exception:
+                pass
             return PhaseResult(
                 phase="", kind=PhaseKind.LOCAL_MODEL, success=True,
                 output={"ollama_response": result.stdout}, tokens_used=tokens,
             )
         except Exception as e:
+            duration_ms = round((_time.time() - t0) * 1000, 2)
+            # ── Runtime event: ollama invoked (failed) ──
+            try:
+                from .event_bus import get_event_bus, OLLAMA_INVOKED
+                get_event_bus().emit(OLLAMA_INVOKED, {
+                    "model": model,
+                    "task": phase_def.get("name", "?"),
+                    "duration_ms": duration_ms,
+                    "success": False,
+                    "error": str(e),
+                })
+            except Exception:
+                pass
             return PhaseResult(
                 phase="", kind=PhaseKind.LOCAL_MODEL, success=False, error=str(e),
             )
 
     def _call_frontier(self, phase_def: Dict, ctx: Dict) -> PhaseResult:
+        import time as _time
         prompt_template = phase_def.get("prompt_template", "")
         try:
             prompt = prompt_template.format(**ctx)
         except KeyError:
             prompt = prompt_template
+        t0 = _time.time()
         tokens = len(prompt.split())
+        duration_ms = round((_time.time() - t0) * 1000, 2)
+        # ── Runtime event: frontier invoked ──
+        try:
+            from .event_bus import get_event_bus, FRONTIER_INVOKED
+            get_event_bus().emit(FRONTIER_INVOKED, {
+                "model": phase_def.get("model", "frontier"),
+                "task": phase_def.get("name", "?"),
+                "duration_ms": duration_ms,
+                "tokens": tokens,
+                "success": True,
+            })
+        except Exception:
+            pass
         return PhaseResult(
             phase="", kind=PhaseKind.FRONTIER, success=True,
             output={"frontier_prompt": prompt, "status": "ready_for_dispatch"},
