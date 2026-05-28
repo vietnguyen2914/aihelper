@@ -68,30 +68,57 @@ aihelper safe-apply --patch-file fix.patch --files src/UserService.php --auto-ap
 
 ## Quick Start
 
+### 1. Install
 ```bash
-# 1. Clone
 git clone https://github.com/vietnguyen2914/aihelper.git
 cd aihelper
+pip install -r requirements.txt
+ollama pull qwen3.5:4b-16k phi4-mini:latest deepseek-coder:1.3b
+```
 
-# 2. Bootstrap (prerequisites check + env setup)
-bash scripts/bootstrap.sh
+### 2. Initialize for your projects
+```bash
+bash scripts/init-config.sh --project-root ~/github/your-project
+```
+This installs behavioral laws into:
+- `<project>/.github/copilot-instructions.md`
+- `<project>/AGENTS.md`
+- `~/.github/copilot-instructions.md` (global)
+- Editor MCP configs (Zed, Claude, Codex, Gemini, VSCode, OpenCode)
 
-# 3. Verify installation
-./bin/aihelper doctor
+### 3. Build cache
+```bash
+aihelper cache build --project-root ~/github/your-project
+```
 
-# 4. Generate per-project agent configs
-aihelper init-config
-
-# 5. Use on any project
-cd /path/to/your/project
-aihelper cache build
-aihelper route "fix payment bug"
+### 4. Verify
+```bash
+aihelper cache status --project-root ~/github/your-project
+aihelper route "add feature X"
 ```
 
 > **No Ollama? No problem.** aihelper works without local models — core features (routing, context, symbols, diagnostics, patch planning) are model-free. Models enhance capability but are **optional**.
 
 > **Minimal footprint:** Python 3.9+, macOS/Linux/Windows, ~15GB disk for full model stack.  
 > **Cloud-only mode:** Use aihelper purely as a context orchestrator with your preferred cloud model.
+
+## Behavioral Laws
+
+Once initialized with `init-config`, ALL AI agents in your project automatically follow these rules:
+
+- **Route before you act** — always call `aihelper_route` and `aihelper_context` FIRST before scanning repos or reading files
+- **Prefer semantic tools** — use `symbol_lookup`, `explore`, `diff_summary` instead of raw `grep`/`read_file`
+- **Route DTO/CRUD to local Ollama** — simple structural tasks go to the local model tier, saving cloud costs
+- **Stay within graph boundaries** — sub-agents operate on one module at a time, max 3 levels deep
+- **Obey token budget** — 2,000 chars for single-file changes, 4,000 for multi-file, hard-enforced by the engine
+
+See [`ai/system/behavioral_laws.md`](ai/system/behavioral_laws.md) for the full behavioral code.
+
+---
+
+## Setup Guide
+
+For a detailed step-by-step walkthrough, see [docs/user/setup-guide.md](docs/user/setup-guide.md).
 
 ---
 

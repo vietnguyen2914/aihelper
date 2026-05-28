@@ -298,6 +298,52 @@ foreach ($projDir in $Projects) {
     Run-IntegrationScript "claude-integration.py" @("--path", $projDir)
 }
 
+# ── Inject behavioral laws into project configs ──
+Write-Host ""
+Write-Host "-- Injecting behavioral laws -------------------------------" -ForegroundColor Cyan
+Write-Host ""
+
+$behavioralLawsFile = Join-Path $AihelperRoot "ai" "system" "behavioral_laws.md"
+if (Test-Path $behavioralLawsFile) {
+    $behavioralLawsContent = Get-Content $behavioralLawsFile -Raw
+
+    # Inject into global ~/.github/copilot-instructions.md
+    if (Test-Path $globalCopilotFile) {
+        $content = Get-Content $globalCopilotFile -Raw
+        if ($content -notmatch "## Behavioral Laws") {
+            if ($DryRun) {
+                Write-Host "  [DRY-RUN] Would append behavioral laws to: $globalCopilotFile"
+            } else {
+                Add-Content -Path $globalCopilotFile -Value ("`r`n`r`n" + $behavioralLawsContent) -NoNewline
+                Log "OK" "  Behavioral laws appended: $globalCopilotFile"
+            }
+        } else {
+            Log "SKIP" "  Behavioral laws already present: $globalCopilotFile"
+        }
+    }
+
+    # Inject into per-project AGENTS.md and .github/copilot-instructions.md
+    foreach ($projDir in $Projects) {
+        foreach ($targetFile in @(Join-Path $projDir "AGENTS.md"), (Join-Path $projDir ".github" "copilot-instructions.md")) {
+            if (Test-Path $targetFile) {
+                $content = Get-Content $targetFile -Raw -ErrorAction SilentlyContinue
+                if ($content -notmatch "## Behavioral Laws") {
+                    if ($DryRun) {
+                        Write-Host "  [DRY-RUN] Would append behavioral laws to: $targetFile"
+                    } else {
+                        Add-Content -Path $targetFile -Value ("`r`n`r`n" + $behavioralLawsContent) -NoNewline
+                        Log "OK" "  Behavioral laws appended: $targetFile"
+                    }
+                } else {
+                    Log "SKIP" "  Behavioral laws already present: $targetFile"
+                }
+            }
+        }
+    }
+} else {
+    Log "WARN" "  Behavioral laws file not found: $behavioralLawsFile"
+}
+
 # ── Auto-detect preferences & dispatch knowledge ──
 Write-Host ""
 Write-Host "-- Auto-detecting preferences & dispatching knowledge ------" -ForegroundColor Cyan

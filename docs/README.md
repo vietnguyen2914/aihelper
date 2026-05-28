@@ -2,10 +2,15 @@
 
 ## Getting Started
 
-- [INSTALLATION.md](./INSTALLATION.md) — Setup, prerequisites, editor integration (macOS, Linux, Windows)
+- [user/setup-guide.md](./user/setup-guide.md) — **Quick 5-step setup** (install, initialize, build cache, verify)
+- [INSTALLATION.md](./INSTALLATION.md) — Full installation, prerequisites, editor integration (macOS, Linux, Windows)
 - [README.md](../README.md) — Overview, features, benchmarks, commands
 - [CONTRIBUTING.md](../CONTRIBUTING.md) — How to report issues and contribute workflow-focused improvements
 - [CHANGELOG.md](../CHANGELOG.md) — Release history and upcoming changes
+
+## Behavioral Laws
+
+- [ai/system/behavioral_laws.md](../ai/system/behavioral_laws.md) — AI agent behavioral code (routing, token budget, graph boundaries)
 
 ## Core
 
