@@ -210,3 +210,12 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 tmp/
+
+# aihelper runtime data (per-machine, should not be committed)
+.aihelper/events.db
+.aihelper/*.db
+
+# Test artifacts and reports (generated locally, per-machine paths)
+tests/adversarial/*report.json
+tests/adversarial/*report.txt
+tests/adversarial/replay_report.*
