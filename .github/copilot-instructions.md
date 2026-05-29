@@ -41,30 +41,28 @@ Use `merge_settings()` deep-merge. Skip writing when content is unchanged.
 ### Cross-platform
 Each script must handle macOS, Linux, AND Windows paths and Python commands.
 
-## Behavioral Laws — MANDATORY Execution Protocol
+## Engineering Guidelines
 
-These are NOT suggestions. These are execution laws for all AI agents.
+These guidelines help AI agents produce better results regardless of which tools you use.
 
-### REQUIRED WORKFLOW (before ANY file reads or terminal commands)
-1. `aihelper_route "<task>"` — classify task and get tool recommendations
-2. `aihelper_context --max-context-chars 3000` — compact project overview
-3. `aihelper_symbol_lookup <target>` — find symbols semantically (NOT grep)
+### Before exploring codebase
+- Understand the project structure before making changes
+- Check existing patterns and conventions first
+- Use the project's AI index or semantic search if available
 
-### FORBIDDEN (use semantic tools instead)
-- ❌ `grep -r` / `find .` for code exploration → use `aihelper_symbol_lookup`
-- ❌ Recursive `read_file` on multiple files → use `aihelper_explore`
-- ❌ Manual dependency tracing → use `aihelper_callers` / `aihelper_callees`
+### Code changes
+- Follow existing patterns, not invented ones
+- Keep changes minimal and focused
+- Respect the project's architecture and module boundaries
 
-### TIER ENFORCEMENT (automatic delegation)
-- DTOs, CRUD, repositories, boilerplate → MUST use local Ollama model
-- Only refactoring, architecture, security, complex logic → may use frontier
-- `aihelper_tier_route` determines tier automatically
+### Testing & verification
+- Run tests before and after changes
+- Verify compilation/build succeeds
+- Update documentation when changing interfaces
 
-### SUBAGENT EXECUTION
-- Subagents receive bounded cognition packages, not raw prompts
-- Subagents MUST stay within assigned graph boundary
-- Subagents MUST NOT scan repos freely
-
-### VERIFICATION (before declaring done)
-- `aihelper_verify architecture` after structural changes
-- `aihelper_verify regression-risk --target <symbol>` after code changes
+### If you have aihelper installed
+This project works optimally with [aihelper](https://github.com/user/aihelper).
+Run `bash scripts/init-config.sh` in the project root to enable:
+- Semantic codebase exploration
+- Local AI model support for boilerplate generation
+- Incremental cache and dependency-aware refactoring
